@@ -1,0 +1,70 @@
+version: v1
+kind: NixConfig
+type: user
+metadata:
+  name: personal-dev-env
+  description: Personal development environment configuration
+  created: 2024-02-24T11:45:00Z
+  updated: 2024-02-24T11:45:00Z
+base: ~/.config/nix-foundry/team-base.yaml
+settings:
+  shell: zsh
+  logLevel: info
+  autoUpdate: true
+  updateInterval: 24h
+nix:
+  manager: nix-env
+  packages:
+    core:
+      # Personal development tools
+      - git
+      - ripgrep
+      - fd
+      - jq
+      - fzf
+      - bat
+      - exa
+      - direnv
+    optional:
+      # Additional tools that might be useful
+      - neovim
+      - tmux
+      - gh
+  scripts:
+    - name: setup-shell
+      description: Configure Zsh with plugins and theme
+      commands: |
+        #!/usr/bin/env bash
+
+        # Install Oh My Zsh if not already installed
+        if [ ! -d "$HOME/.oh-my-zsh" ]; then
+          RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+        fi
+
+        # Install powerlevel10k theme
+        if [ ! -d "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k" ]; then
+          git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+        fi
+
+        # Configure theme and plugins
+        sed -i.bak 's/ZSH_THEME="[^"]*"/ZSH_THEME="powerlevel10k\/powerlevel10k"/' ~/.zshrc
+        sed -i.bak 's/plugins=(git)/plugins=(git docker kubectl fzf ripgrep direnv)/' ~/.zshrc
+
+        # Add useful configurations
+        echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+        echo 'export RIPGREP_CONFIG_PATH=$HOME/.ripgreprc' >> ~/.zshrc
+
+        echo "Shell configuration complete!"
+
+    - name: setup-neovim
+      description: Configure Neovim with basic settings
+      commands: |
+        #!/usr/bin/env bash
+
+        # Create Neovim config directory
+        mkdir -p ~/.config/nvim
+
+        # Configure Git to use Neovim
+        git config --global core.editor "nvim"
+
+        echo "Neovim configuration complete!"

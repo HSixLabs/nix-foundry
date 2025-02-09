@@ -1,0 +1,14 @@
+# Go
+.go/
+bin/
+
+# Nix
+nix-foundry
+dist/
+.idea/
+.vscode/
+.DS_Store
+
+# Node.js
+node_modules/
+package-lock.json
