@@ -1,0 +1,32 @@
+name: Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pre-commit:
+    name: Pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Install pre-commit
+        run: nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit install"
+
+      - name: Run pre-commit checks
+        run: nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit run --all-files"
+
+  build:
+    name: Test on ${{ matrix.os }}
+    needs: pre-commit
+    runs-on: ${{ matrix.os }}
+    strategy:
