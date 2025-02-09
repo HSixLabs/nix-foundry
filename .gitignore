@@ -1,0 +1,39 @@
+# Nix build outputs
+result
+result-*
+
+# direnv
+.direnv/
+.envrc
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Local environment files
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Nix garbage collection roots
+/nix/var/nix/gcroots/
+
+# Build artifacts
+/build/
+/dist/
+
+# Home Manager generated files
+home-manager-generation* 
