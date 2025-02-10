@@ -22,6 +22,9 @@
         source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
       fi
 
+      # Source p10k config
+      [[ ! -f $ZDOTDIR/.p10k.zsh ]] || source $ZDOTDIR/.p10k.zsh
+
       # ZSH options from your previous config
       setopt autocd extendedglob nomatch menucomplete
       setopt interactive_comments
@@ -76,4 +79,7 @@
   home.sessionVariables = {
     ZDOTDIR = "$HOME/.config/zsh";
   };
+
+  # Use the p10k.nix configuration
+  xdg.configFile."zsh/.p10k.zsh".text = import ./p10k.nix { inherit config pkgs lib; };
 } 
