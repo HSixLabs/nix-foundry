@@ -73,7 +73,7 @@
   };
 
   # Use the p10k.nix configuration instead of external file
-  xdg.configFile."zsh/.p10k.zsh".text = import ./p10k.nix;
+  xdg.configFile."zsh/.p10k.zsh".text = (import ./p10k.nix { inherit config pkgs lib; }).text;
 
   # Set ZDOTDIR explicitly
   home.sessionVariables = {
