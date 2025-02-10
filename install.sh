@@ -131,7 +131,7 @@ setup_config_dir() {
       ;;
   esac
 
-  # Shared modules (all platforms)
+  # Shared modules
   fetch_file "modules/shared/base.nix" "$CONFIG_DIR/modules/shared/base.nix"
   fetch_file "modules/shared/programs/nix.nix" "$CONFIG_DIR/modules/shared/programs/nix.nix"
 
@@ -142,13 +142,9 @@ setup_config_dir() {
       fetch_file "modules/darwin/core.nix" "$CONFIG_DIR/modules/darwin/core.nix"
       fetch_file "modules/darwin/fonts.nix" "$CONFIG_DIR/modules/darwin/fonts.nix"
       ;;
-    *-linux*)
+    *-linux)
       fetch_file "modules/nixos/default.nix" "$CONFIG_DIR/modules/nixos/default.nix"
-      fetch_file "modules/nixos/hardware.nix" "$CONFIG_DIR/modules/nixos/hardware.nix"
-      fetch_file "modules/nixos/network.nix" "$CONFIG_DIR/modules/nixos/network.nix"
-      ;;
-    x86_64-windows)
-      # Windows-specific modules if needed
+      fetch_file "modules/nixos/core.nix" "$CONFIG_DIR/modules/nixos/core.nix"
       ;;
   esac
 }
