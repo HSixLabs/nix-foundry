@@ -5,7 +5,6 @@
     ./zsh.nix
     ./git.nix
     ./vscode.nix
-    ./zsh.nix
     ./p10k.nix
   ];
 
