@@ -1,52 +1,10 @@
 { config, pkgs, lib, ... }:
 
 {
-  imports = [ ./p10k.nix ];
-
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
     enableCompletion = true;
-    
-    history = {
-      size = 1000000;
-      save = 1000000;
-      path = "$HOME/.zsh_history";
-      ignoreDups = true;
-      share = true;
-      extended = true;
-    };
-
-    initExtra = ''
-      # Enable Powerlevel10k instant prompt
-      if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
-        source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
-      fi
-
-      # Source p10k config
-      [[ ! -f $ZDOTDIR/.p10k.zsh ]] || source $ZDOTDIR/.p10k.zsh
-
-      # ZSH options from your previous config
-      setopt autocd extendedglob nomatch menucomplete
-      setopt interactive_comments
-      unsetopt BEEP
-
-      # Useful ZLE configurations
-      zle_highlight=('paste:none')
-      
-      # Key bindings for history search
-      autoload -U up-line-or-beginning-search
-      autoload -U down-line-or-beginning-search
-      zle -N up-line-or-beginning-search
-      zle -N down-line-or-beginning-search
-
-      # Load colors
-      autoload -Uz colors && colors
-
-      # Completion styling
-      zstyle ':completion:*' menu select
-      _comp_options+=(globdots) # Include hidden files in completion
-    '';
     
     plugins = [
       {
@@ -79,6 +37,16 @@
         };
       }
     ];
+
+    initExtra = ''
+      # Enable Powerlevel10k instant prompt
+      if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
+        source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
+      fi
+
+      # Source p10k config
+      [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+    '';
 
     dotDir = ".config/zsh";
   };

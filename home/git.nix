@@ -3,31 +3,13 @@
 {
   programs.git = {
     enable = true;
-    userName = "Shawn Hoffman";
-    userEmail = "your.email@example.com";
+    package = pkgs.git;
     
+    # Keep only system-wide settings
     extraConfig = {
-      core = {
-        editor = "nvim";
-        autocrlf = "input";
-      };
       init.defaultBranch = "main";
+      core.autocrlf = "input";
       pull.rebase = true;
-      push.autoSetupRemote = true;
-      
-      url = {
-        "ssh://git@github.com/" = {
-          insteadOf = "https://github.com/";
-        };
-      };
     };
-    
-    ignores = [
-      ".DS_Store"
-      "*.swp"
-      ".env"
-      ".direnv"
-      "node_modules"
-    ];
   };
 }

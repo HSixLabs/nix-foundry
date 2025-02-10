@@ -5,7 +5,6 @@
     ./zsh.nix
     ./git.nix
     ./vscode.nix
-    ./p10k.nix
   ];
 
   home = {

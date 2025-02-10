@@ -31,35 +31,9 @@ in
     
     extensions = with pkgs.vscode-extensions; [
       bbenoist.nix
-      esbenp.prettier-vscode
-      dbaeumer.vscode-eslint
-      eamodio.gitlens
-      
-      # Languages & Frameworks
-      ms-python.python
-      ms-python.vscode-pylance
-      golang.go
-      
-      # DevOps & Cloud
-      ms-kubernetes-tools.vscode-kubernetes-tools
-      ms-azuretools.vscode-docker
-      hashicorp.terraform
-      
-      # Remote Development
-      ms-vscode-remote.remote-ssh
-      ms-vscode-remote.remote-containers
-      ms-vscode-remote.remote-wsl
     ];
 
     userSettings = {
-      "editor.fontFamily" = "'Hack Nerd Font', monospace";
-      "editor.fontSize" = 14;
-      "editor.lineNumbers" = "relative";
-      "editor.renderWhitespace" = "boundary";
-      "editor.rulers" = [ 80 120 ];
-      "files.trimTrailingWhitespace" = true;
-      "terminal.integrated.fontFamily" = "'Hack Nerd Font'";
-      "workbench.colorTheme" = "Default Dark+";
       "nix.enableLanguageServer" = true;
       "nix.serverPath" = "nil";
       "nix.serverSettings" = {
@@ -67,8 +41,6 @@ in
           "formatting" = { "command" = ["nixfmt"]; };
         };
       };
-      "update.mode" = "none";
-      "extensions.autoUpdate" = false;
     };
   };
 } 
