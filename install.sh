@@ -190,6 +190,18 @@ setup_homebrew() {
   cat > "$HOME/.config/zsh/conf.d/homebrew.zsh" << EOL
 # Initialize Homebrew
 eval "\$($brew_path shellenv)"
+
+# Auto-update Brewfile after package operations
+function brew() {
+  command brew "\$@"
+  if [[ "\$1" == "install" ]] || [[ "\$1" == "uninstall" ]] || [[ "\$1" == "tap" ]] || [[ "\$1" == "untap" ]]; then
+    command brew bundle dump --force --file="\$HOME/.config/Brewfile"
+    if [ -f "\$HOME/.config/Brewfile" ]; then
+      mkdir -p "\$HOME/.config/nix-configs"
+      cp "\$HOME/.config/Brewfile" "\$HOME/.config/nix-configs/Brewfile"
+    fi
+  fi
+}
 EOL
 
   # Fetch existing Brewfile from repository if available

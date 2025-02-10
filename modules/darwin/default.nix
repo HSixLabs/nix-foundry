@@ -4,6 +4,7 @@
   imports = [
     ./core.nix
     ./fonts.nix
+    ./homebrew.nix
   ];
 
   # Fix for build user group ID mismatch

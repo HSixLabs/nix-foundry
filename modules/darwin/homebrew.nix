@@ -71,7 +71,7 @@
   };
 
   # Update activation script to handle Brewfile properly
-  system.activationScripts.postActivation.text = ''
+  system.activationScripts.postActivation.text = lib.mkAfter ''
     # Backup existing Brewfile
     if [ -f ~/.config/Brewfile ]; then
       cp ~/.config/Brewfile ~/.config/Brewfile.backup
@@ -80,11 +80,7 @@
     # Install packages from Brewfile if it exists
     if [ -f ~/.config/Brewfile ]; then
       echo "Installing Homebrew packages from Brewfile..."
-      brew bundle install --file=~/.config/Brewfile
+      /opt/homebrew/bin/brew bundle install --file=~/.config/Brewfile || true
     fi
-    
-    # Update Brewfile with any new packages
-    echo "Updating Brewfile with current packages..."
-    brew bundle dump --force --file=~/.config/Brewfile
   '';
 } 
