@@ -82,6 +82,8 @@ fetch_file() {
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3.raw" \
     -H "Cache-Control: no-cache, no-store, must-revalidate" \
+    -H "Pragma: no-cache" \
+    -H "Expires: 0" \
     -w "%{http_code}" \
     "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
     -o "$output" 2>/dev/null)
