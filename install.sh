@@ -183,18 +183,25 @@ setup_homebrew() {
   if ! command -v brew >/dev/null 2>&1; then
     echo "Installing Homebrew..."
     NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
-    # Add Homebrew to PATH for the current session
-    if [[ "$(uname -m)" == "arm64" ]]; then
-      eval "$(/opt/homebrew/bin/brew shellenv)"
-    else
-      eval "$(/usr/local/bin/brew shellenv)"
-    fi
-
-    # Set up Homebrew in the correct zsh config location
-    mkdir -p "$HOME/.config/zsh/conf.d"
-    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' > "$HOME/.config/zsh/conf.d/homebrew.zsh"
   fi
+
+  # Ensure Homebrew is in PATH for both arm64 and x86_64
+  local brew_path=""
+  if [[ "$(uname -m)" == "arm64" ]]; then
+    brew_path="/opt/homebrew/bin/brew"
+  else
+    brew_path="/usr/local/bin/brew"
+  fi
+
+  # Add Homebrew to PATH for current session
+  eval "$($brew_path shellenv)"
+
+  # Create Homebrew initialization file
+  mkdir -p "$HOME/.config/zsh/conf.d"
+  cat > "$HOME/.config/zsh/conf.d/homebrew.zsh" << EOL
+# Initialize Homebrew
+eval "\$($brew_path shellenv)"
+EOL
 
   # Initialize Brewfile only on Darwin
   mkdir -p "$HOME/.config"
