@@ -53,9 +53,6 @@
     dotDir = ".config/zsh";
   };
 
-  home.file = {
-    ".config/zsh/conf.d/.keep".text = "";
-    ".config/zsh/conf.d/p10k.zsh".source = config.lib.file.mkOutOfStoreSymlink 
-      "${config.home.homeDirectory}/.config/zsh/conf.d/p10k.zsh";
-  };
+  # Only create the directory, let p10k manage its own config file
+  home.file.".config/zsh/conf.d/.keep".text = "";
 } 
