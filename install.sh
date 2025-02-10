@@ -1,5 +1,29 @@
 #!/usr/bin/env bash
 
+setup_ssl_certs() {
+  # Create certificates directory with proper permissions
+  sudo mkdir -p /etc/ssl/certs
+  sudo chmod 755 /etc/ssl/certs
+  
+  # Export and set up certificates
+  echo "Setting up SSL certificates..."
+  sudo security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/certs.pem
+  sudo security find-certificate -a -p /Library/Keychains/System.keychain >> /tmp/certs.pem
+  sudo mv /tmp/certs.pem /etc/ssl/certs/ca-certificates.crt
+  sudo chmod 644 /etc/ssl/certs/ca-certificates.crt
+  
+  # Verify certificates were created
+  if [ ! -f "/etc/ssl/certs/ca-certificates.crt" ]; then
+    echo "Error: Failed to create SSL certificates"
+    exit 1
+  fi
+  
+  # Set environment variables
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+}
+
 detect_platform() {
   local os=$(uname -s)
   local arch=$(uname -m)
@@ -99,23 +123,6 @@ setup_windows() {
   fi
 }
 
-# Setup SSL certificates for macOS
-if [[ "$PLATFORM" == *"-darwin" ]]; then
-  # Create certificates directory with proper permissions
-  sudo mkdir -p /etc/ssl/certs
-  sudo chmod 755 /etc/ssl/certs
-  
-  # Export and set up certificates
-  sudo security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/certs.pem
-  sudo security find-certificate -a -p /Library/Keychains/System.keychain >> /tmp/certs.pem
-  sudo mv /tmp/certs.pem /etc/ssl/certs/ca-certificates.crt
-  sudo chmod 644 /etc/ssl/certs/ca-certificates.crt
-  
-  # Set environment variables
-  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-  export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-fi
-
 main() {
   PLATFORM=$(detect_platform)
   HOST=$(hostname)
@@ -124,6 +131,11 @@ main() {
   USER=$(whoami)
   USERNAME=$USER
   export USER USERNAME HOST PLATFORM
+
+  # Setup SSL certificates first for Darwin
+  if [[ "$PLATFORM" == *"-darwin" ]]; then
+    setup_ssl_certs
+  fi
 
   # Platform-specific configurations
   case "$PLATFORM" in
