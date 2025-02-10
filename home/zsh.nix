@@ -1,12 +1,13 @@
 { config, pkgs, lib, ... }:
 
 {
+  imports = [ ./p10k.nix ];
+
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
     enableCompletion = true;
     
-    # Add history configuration
     history = {
       size = 1000000;
       save = 1000000;
@@ -75,11 +76,7 @@
     ];
   };
 
-  # Set ZDOTDIR explicitly
   home.sessionVariables = {
     ZDOTDIR = "$HOME/.config/zsh";
   };
-
-  # Use the p10k.nix configuration
-  xdg.configFile."zsh/.p10k.zsh".text = import ./p10k.nix { inherit config pkgs lib; };
 } 
