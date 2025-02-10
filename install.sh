@@ -99,8 +99,17 @@ setup_windows() {
 
 # Setup SSL certificates for macOS
 if [[ "$PLATFORM" == *"-darwin" ]]; then
+  # Create certificates directory with proper permissions
   sudo mkdir -p /etc/ssl/certs
-  sudo security export-system-root-certificates -o /etc/ssl/certs/ca-certificates.crt
+  sudo chmod 755 /etc/ssl/certs
+  
+  # Export and set up certificates
+  sudo security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/certs.pem
+  sudo security find-certificate -a -p /Library/Keychains/System.keychain >> /tmp/certs.pem
+  sudo mv /tmp/certs.pem /etc/ssl/certs/ca-certificates.crt
+  sudo chmod 644 /etc/ssl/certs/ca-certificates.crt
+  
+  # Set environment variables
   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
   export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 fi
@@ -113,8 +122,6 @@ main() {
   USER=$(whoami)
   USERNAME=$USER
   export USER USERNAME HOST PLATFORM
-
-  echo "Debug: USER=$USER, USERNAME=$USERNAME, PLATFORM=$PLATFORM"
 
   # Platform-specific configurations
   case "$PLATFORM" in
