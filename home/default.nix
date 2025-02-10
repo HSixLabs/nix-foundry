@@ -3,6 +3,9 @@
 {
   imports = [
     ./zsh.nix
+    ./zsh-exports.nix
+    ./zsh-aliases.nix
+    ./zsh-vim-mode.nix
     ./git.nix
     ./vscode.nix
   ];
