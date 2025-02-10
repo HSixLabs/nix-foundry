@@ -175,20 +175,28 @@ setup_windows() {
 }
 
 setup_homebrew() {
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "Installing Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    
-    # Add Homebrew to PATH for the current session
-    if [[ "$(uname -s)" == "Darwin" ]]; then
-      if [[ "$(uname -m)" == "arm64" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-      else
-        eval "$(/usr/local/bin/brew shellenv)"
-      fi
-    fi
+  # Only run Homebrew setup on Darwin systems
+  if [[ "$PLATFORM" != *"-darwin" ]]; then
+    return 0
   fi
 
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    
+    # Add Homebrew to PATH for the current session
+    if [[ "$(uname -m)" == "arm64" ]]; then
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+      eval "$(/usr/local/bin/brew shellenv)"
+    fi
+
+    # Set up Homebrew in the correct zsh config location
+    mkdir -p "$HOME/.config/zsh/conf.d"
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' > "$HOME/.config/zsh/conf.d/homebrew.zsh"
+  fi
+
+  # Initialize Brewfile only on Darwin
   mkdir -p "$HOME/.config"
   if [ ! -f "$HOME/.config/Brewfile" ]; then
     echo "Creating initial Brewfile..."
