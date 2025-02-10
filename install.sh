@@ -128,6 +128,8 @@ setup_config_dir() {
     *)
       # Unix-like systems use ZSH
       mkdir -p "$HOME/.config/zsh/conf.d"
+      # Remove existing vim-mode.zsh if it exists
+      rm -f "$HOME/.config/zsh/conf.d/vim-mode.zsh"
       ;;
   esac
 

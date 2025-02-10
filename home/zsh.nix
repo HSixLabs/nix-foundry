@@ -57,7 +57,4 @@
 
     dotDir = ".config/zsh";
   };
-
-  # Let home-manager manage the conf.d directory
-  home.file.".config/zsh/conf.d/vim-mode.zsh".source = ./zsh-vim-mode.nix;
 } 
