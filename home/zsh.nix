@@ -48,6 +48,11 @@
       for conf in $HOME/.config/zsh/conf.d/*.zsh(N); do
         source $conf
       done
+
+      # Source local overrides if they exist
+      if [[ -f $HOME/.zshrc.local ]]; then
+        source $HOME/.zshrc.local
+      fi
     '';
 
     dotDir = ".config/zsh";
