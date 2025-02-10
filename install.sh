@@ -205,7 +205,16 @@ handle_reinstall() {
     echo "1. Backup and reinstall (existing config will be moved to ${config_dir}.backup-$(date +%Y%m%d_%H%M%S))"
     echo "2. Clean reinstall (existing config will be removed)"
     echo "3. Cancel"
-    read -p "Please select an option [1-3]: " choice
+    
+    # Check if script is running interactively
+    if [ -t 0 ]; then
+      # Interactive mode
+      read -p "Please select an option [1-3]: " choice
+    else
+      # Non-interactive mode (default to backup)
+      echo "Running in non-interactive mode. Defaulting to option 1 (backup)"
+      choice=1
+    fi
     
     case "$choice" in
       1)
@@ -222,8 +231,10 @@ handle_reinstall() {
         exit 0
         ;;
       *)
-        echo "Invalid option. Installation cancelled"
-        exit 1
+        echo "Invalid option. Defaulting to backup (option 1)"
+        local backup_dir="${config_dir}.backup-$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing configuration to $backup_dir"
+        mv "$config_dir" "$backup_dir"
         ;;
     esac
   fi
