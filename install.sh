@@ -57,7 +57,9 @@ fetch_file() {
   curl -fsSL \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3.raw" \
-    "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
+    -H "Cache-Control: no-cache" \
+    -v \
+    "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&$(date +%s)" \
     > "$output" || {
     echo "Error: Failed to fetch ${path}"
     return 1
