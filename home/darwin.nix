@@ -11,6 +11,9 @@
     ];
 
     file = {
+      ".config/Brewfile".source = config.lib.file.mkOutOfStoreSymlink 
+        "${config.home.homeDirectory}/.config/nix-configs/Brewfile";
+      
       ".config/iterm2/com.googlecode.iterm2.plist".text = builtins.toJSON {
         "Normal Font" = "MesloLGS NF Regular 12";
         "Terminal Type" = "xterm-256color";
@@ -36,8 +39,6 @@
           }
         ];
       };
-      ".config/Brewfile".source = config.lib.file.mkOutOfStoreSymlink 
-        "${config.home.homeDirectory}/.config/nix-configs/Brewfile";
     };
   };
 
