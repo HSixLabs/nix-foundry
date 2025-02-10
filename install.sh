@@ -78,14 +78,26 @@ fetch_file() {
   fi
   
   echo "Fetching $path..."
-  curl -fsSL \
+  local response=$(curl -fsSL \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3.raw" \
+    -H "Cache-Control: no-cache, no-store, must-revalidate" \
+    -w "%{http_code}" \
     "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
-    > "$output" || {
-    echo "Error: Failed to fetch ${path}"
+    -o "$output" 2>/dev/null)
+    
+  if [ "$response" != "200" ]; then
+    echo "Error: Failed to fetch ${path} (HTTP ${response})"
     return 1
-  }
+  fi
+  
+  if [ ! -s "$output" ]; then
+    echo "Error: Empty file received for ${path}"
+    return 1
+  fi
+  
+  echo "Successfully fetched ${path}"
+  return 0
 }
 
 setup_config_dir() {
@@ -97,19 +109,58 @@ setup_config_dir() {
   fetch_file "users.nix" "$CONFIG_DIR/users.nix"
 
   # Home manager configurations
-  for file in default.nix git.nix shell.nix vscode.nix zsh.nix p10k.nix; do
+  for file in default.nix git.nix vscode.nix; do
     fetch_file "home/$file" "$CONFIG_DIR/home/$file"
   done
 
-  # Shared modules
+  # Shell configurations - platform aware
+  case "$PLATFORM" in
+    x86_64-windows)
+      # Windows uses PowerShell by default
+      fetch_file "home/pwsh.nix" "$CONFIG_DIR/home/pwsh.nix"
+      mkdir -p "$APPDATA/PowerShell"
+      ;;
+    *)
+      # Unix-like systems use ZSH
+      fetch_file "home/shell.nix" "$CONFIG_DIR/home/shell.nix"
+      fetch_file "home/zsh.nix" "$CONFIG_DIR/home/zsh.nix"
+      fetch_file "home/zsh-functions.nix" "$CONFIG_DIR/home/zsh-functions.nix"
+      fetch_file "home/zsh-prompt.nix" "$CONFIG_DIR/home/zsh-prompt.nix"
+      fetch_file "home/p10k.nix" "$CONFIG_DIR/home/p10k.nix"
+      
+      # Create ZSH config directory based on platform
+      case "$PLATFORM" in
+        *-darwin)
+          mkdir -p "$HOME/.config/zsh"
+          ;;
+        *-linux*)
+          mkdir -p "$HOME/.config/zsh"
+          ;;
+      esac
+      ;;
+  esac
+
+  # Shared modules (all platforms)
   fetch_file "modules/shared/base.nix" "$CONFIG_DIR/modules/shared/base.nix"
   fetch_file "modules/shared/programs/nix.nix" "$CONFIG_DIR/modules/shared/programs/nix.nix"
   fetch_file "modules/shared/programs/shell.nix" "$CONFIG_DIR/modules/shared/programs/shell.nix"
 
-  # Darwin modules
-  fetch_file "modules/darwin/default.nix" "$CONFIG_DIR/modules/darwin/default.nix"
-  fetch_file "modules/darwin/core.nix" "$CONFIG_DIR/modules/darwin/core.nix"
-  fetch_file "modules/darwin/fonts.nix" "$CONFIG_DIR/modules/darwin/fonts.nix"
+  # Platform-specific modules
+  case "$PLATFORM" in
+    *-darwin)
+      fetch_file "modules/darwin/default.nix" "$CONFIG_DIR/modules/darwin/default.nix"
+      fetch_file "modules/darwin/core.nix" "$CONFIG_DIR/modules/darwin/core.nix"
+      fetch_file "modules/darwin/fonts.nix" "$CONFIG_DIR/modules/darwin/fonts.nix"
+      ;;
+    *-linux*)
+      fetch_file "modules/nixos/default.nix" "$CONFIG_DIR/modules/nixos/default.nix"
+      fetch_file "modules/nixos/hardware.nix" "$CONFIG_DIR/modules/nixos/hardware.nix"
+      fetch_file "modules/nixos/network.nix" "$CONFIG_DIR/modules/nixos/network.nix"
+      ;;
+    x86_64-windows)
+      # Windows-specific modules if needed
+      ;;
+  esac
 }
 
 # Add Windows-specific setup
