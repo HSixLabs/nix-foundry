@@ -8,6 +8,7 @@
     ./zsh-vim-mode.nix
     ./git.nix
     ./vscode.nix
+    ./darwin.nix
   ];
 
   home = {
