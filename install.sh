@@ -39,27 +39,29 @@ fetch_file() {
   local path="$1"
   local output="$2"
   local repo="shawnkhoffman/nix-configs"
+  local branch="main"
   
   mkdir -p "$(dirname "$output")"
   
-  # Check if we're running from a local repo
   if [ -f "$path" ]; then
     cp "$path" "$output"
-  else
-    # If not local, download from the repo using GitHub API
-    if [ -z "$GITHUB_TOKEN" ]; then
-      echo "Error: GITHUB_TOKEN environment variable is required for remote installation"
-      exit 1
-    fi
-    
-    curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
-         "https://api.github.com/repos/${repo}/contents/${path}" \
-         | jq -r '.content' \
-         | base64 -d > "$output" || {
-      echo "Error: Failed to fetch ${path}"
-      return 1
-    }
+    return 0
   fi
+  
+  if [ -z "$GITHUB_TOKEN" ]; then
+    echo "Error: GITHUB_TOKEN environment variable is required for remote installation"
+    exit 1
+  fi
+  
+  echo "Fetching $path..."
+  curl -fsSL \
+    -H "Authorization: token ${GITHUB_TOKEN}" \
+    -H "Accept: application/vnd.github.v3.raw" \
+    "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
+    > "$output" || {
+    echo "Error: Failed to fetch ${path}"
+    return 1
+  }
 }
 
 setup_config_dir() {
