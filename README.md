@@ -1,5 +1,5 @@
 # nix-configs
 
 ```bash
-curl -L "https://raw.githubusercontent.com/shawnkhoffman/nix-configs/$(git ls-remote git@github.com:shawnkhoffman/nix-configs.git HEAD | cut -f1)/install.sh" | bash
+curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash
 ```

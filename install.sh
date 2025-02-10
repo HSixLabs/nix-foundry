@@ -138,7 +138,7 @@ main() {
   OS=$(detect_os)
   
   # Get the hostname and username
-  HOSTNAME=$(hostname -s)
+  HOSTNAME=$(hostname -s)}
   USERNAME=$(whoami)
   
   # Export HOSTNAME and USERNAME for Nix evaluation
@@ -198,6 +198,11 @@ main() {
       mkdir -p ~/.config/zsh
       
       # First build the initial system
+      echo "Debug environment:"
+      echo "HOSTNAME='${HOSTNAME}'"
+      echo "USER='${USER}'"
+      echo "PWD='${PWD}'"
+      echo "System type: $(uname -sm)"
       echo "Building configuration for ${HOSTNAME}..."
       CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt nix build "$CONFIG_DIR#darwinConfigurations.${HOSTNAME}.system" --show-trace
       
