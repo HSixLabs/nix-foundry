@@ -27,75 +27,12 @@
           command_execution_time  # duration of the last command
           background_jobs        # presence of background jobs
           direnv                 # direnv status
-          asdf                   # asdf version manager
-          virtualenv            # python virtual environment
-          anaconda              # conda environment
-          pyenv                 # python environment
-          goenv                 # go environment
-          nodenv                # node.js version
-          nvm                   # node.js version
-          nodeenv               # node.js environment
-          rbenv                 # ruby version
-          rvm                   # ruby version
-          jenv                  # java version
-          plenv                 # perl version
-          phpenv               # php version
-          kubecontext          # current kubernetes context
-          terraform            # terraform workspace
-          aws                  # aws profile
-          aws_eb_env           # aws elastic beanstalk environment
-          azure                # azure account
-          gcloud               # google cloud profile
-          google_app_cred      # google application credentials
-          context              # user@hostname
-          nordvpn              # nordvpn connection status
-          ranger               # ranger shell
-          nnn                  # nnn shell
-          vim_shell            # vim shell indicator
-          midnight_commander   # midnight commander shell
           nix_shell            # nix shell
-          vi_mode              # vi mode
-          todo                 # todo items
-          timewarrior          # timewarrior tracking status
-          taskwarrior          # taskwarrior task count
           time                 # current time
         )
 
-        # Basic styling
-        typeset -g POWERLEVEL9K_SHORTEN_DIR_LENGTH=2
-        typeset -g POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
-
-        # Prompt styling
-        typeset -g POWERLEVEL9K_PROMPT_ADD_NEWLINE=true
-        typeset -g POWERLEVEL9K_MULTILINE_FIRST_PROMPT_PREFIX='%240F╭─'
-        typeset -g POWERLEVEL9K_MULTILINE_NEWLINE_PROMPT_PREFIX='%240F├─'
-        typeset -g POWERLEVEL9K_MULTILINE_LAST_PROMPT_PREFIX='%240F╰─'
-        typeset -g POWERLEVEL9K_MULTILINE_FIRST_PROMPT_SUFFIX=
-        typeset -g POWERLEVEL9K_MULTILINE_NEWLINE_PROMPT_SUFFIX=
-        typeset -g POWERLEVEL9K_MULTILINE_LAST_PROMPT_SUFFIX=
-
         # Mode and icons
         typeset -g POWERLEVEL9K_MODE=nerdfont-complete
-        typeset -g POWERLEVEL9K_ICON_PADDING=none
-        typeset -g POWERLEVEL9K_ICON_BEFORE_CONTENT=true
-
-        # Background and foreground
-        typeset -g POWERLEVEL9K_BACKGROUND=                            # transparent background
-        typeset -g POWERLEVEL9K_{LEFT,RIGHT}_{LEFT,RIGHT}_WHITESPACE= # no surrounding whitespace
-        typeset -g POWERLEVEL9K_{LEFT,RIGHT}_SUBSEGMENT_SEPARATOR=' '  # separate segments with a space
-        typeset -g POWERLEVEL9K_{LEFT,RIGHT}_SEGMENT_SEPARATOR=        # no end-of-line symbol
-
-        # Hot reload configuration
-        typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
-        (( ! $+functions[p10k] )) || p10k reload
-
-        # Colors from your original config
-        typeset -g POWERLEVEL9K_VIM_SHELL_FOREGROUND=34
-        typeset -g POWERLEVEL9K_MIDNIGHT_COMMANDER_FOREGROUND=178
-        typeset -g POWERLEVEL9K_NIX_SHELL_FOREGROUND=74
-        typeset -g POWERLEVEL9K_NODENV_FOREGROUND=70
-        typeset -g POWERLEVEL9K_NVM_FOREGROUND=70
-        typeset -g POWERLEVEL9K_XPLR_FOREGROUND=72
       }
 
       # Tell p10k configure which file it should overwrite
