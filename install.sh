@@ -197,7 +197,12 @@ main() {
       echo "Installing Powerlevel10k theme..."
       mkdir -p ~/.config/zsh
       
-      # First build the initial system
+      # After installing Nix and before building configuration
+      echo "Starting Nix daemon..."
+      sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+      sleep 5  # Give the daemon time to start
+      
+      # Then continue with the build
       echo "Building configuration for ${HOSTNAME}..."
       HOSTNAME="${HOSTNAME}" CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt nix build "$CONFIG_DIR#darwinConfigurations.${HOSTNAME}.system" --show-trace
       
