@@ -16,6 +16,7 @@
     sessionVariables = {
       EDITOR = "nvim";
       VISUAL = "code";
+      SHELL = "${pkgs.zsh}/bin/zsh";
     };
   };
 

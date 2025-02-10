@@ -57,6 +57,7 @@
           rev = "35833ea15f14b71dbcebc7e54c104d8d56ca5268";
           sha256 = "16rkmnak279xwi2qb3h2rk2940czg193mhim25lf61jvd8nn1k4a";
         };
+        file = "powerlevel10k.zsh-theme";
       }
       {
         name = "zsh-autosuggestions";
