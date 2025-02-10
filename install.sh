@@ -38,6 +38,7 @@ detect_platform() {
 fetch_file() {
   local path="$1"
   local output="$2"
+  local repo="shawnkhoffman/nix-configs"
   
   mkdir -p "$(dirname "$output")"
   
@@ -45,8 +46,19 @@ fetch_file() {
   if [ -f "$path" ]; then
     cp "$path" "$output"
   else
-    # If not local, download from the repo
-    curl -fsSL "https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/${path}" -o "$output"
+    # If not local, download from the repo using GitHub API
+    if [ -z "$GITHUB_TOKEN" ]; then
+      echo "Error: GITHUB_TOKEN environment variable is required for remote installation"
+      exit 1
+    fi
+    
+    curl -fsSL -H "Authorization: token ${GITHUB_TOKEN}" \
+         "https://api.github.com/repos/${repo}/contents/${path}" \
+         | jq -r '.content' \
+         | base64 -d > "$output" || {
+      echo "Error: Failed to fetch ${path}"
+      return 1
+    }
   fi
 }
 
