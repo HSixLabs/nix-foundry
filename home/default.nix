@@ -5,6 +5,8 @@
     ./shell.nix
     ./git.nix
     ./vscode.nix
+    ./zsh.nix
+    ./p10k.nix
   ];
 
   home = {
@@ -15,6 +17,7 @@
     sessionVariables = {
       EDITOR = "nvim";
       VISUAL = "code";
+      ZDOTDIR = "$HOME/.config/zsh";
     };
   };
 

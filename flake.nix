@@ -14,6 +14,10 @@
       url = "github:guibou/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    powerlevel10k = {
+      url = "github:romkatv/powerlevel10k";
+      flake = false;
+    };
   };
 
   outputs = { nixpkgs, home-manager, nix-darwin, nixgl, ... }:

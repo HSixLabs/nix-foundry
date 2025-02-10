@@ -8,6 +8,11 @@
     
     plugins = [
       {
+        name = "powerlevel10k";
+        src = inputs.powerlevel10k;
+        file = "powerlevel10k.zsh-theme";
+      }
+      {
         name = "zsh-autopair";
         src = pkgs.fetchFromGitHub {
           owner = "hlissner";
@@ -18,22 +23,14 @@
       }
     ];
     
-    oh-my-zsh = {
-      enable = true;
-      plugins = [ "git" "docker" "kubectl" ];
-    };
-    
     initExtra = ''
       # Enable Powerlevel10k instant prompt
       if [[ -r "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh" ]]; then
         source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
       fi
 
-      # Source powerlevel10k from the cloned directory
-      source ~/powerlevel10k/powerlevel10k.zsh-theme
-
-      # Initialize Powerlevel10k
-      [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+      # Source p10k config
+      [[ ! -f $ZDOTDIR/.p10k.zsh ]] || source $ZDOTDIR/.p10k.zsh
     '';
   };
 
