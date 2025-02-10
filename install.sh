@@ -111,7 +111,7 @@ setup_config_dir() {
   fetch_file "users.nix" "$CONFIG_DIR/users.nix"
 
   # Home manager configurations
-  for file in default.nix git.nix vscode.nix zsh.nix zsh-exports.nix zsh-aliases.nix zsh-vim-mode.nix; do
+  for file in default.nix git.nix vscode.nix zsh.nix zsh-exports.nix zsh-aliases.nix zsh-vim-mode.nix zsh-functions.nix; do
     if ! fetch_file "home/$file" "$CONFIG_DIR/home/$file"; then
       echo "Error: Failed to fetch home/$file"
       exit 1
@@ -127,17 +127,7 @@ setup_config_dir() {
       ;;
     *)
       # Unix-like systems use ZSH
-      fetch_file "home/zsh.nix" "$CONFIG_DIR/home/zsh.nix"
-      
-      # Create ZSH config directory based on platform
-      case "$PLATFORM" in
-        *-darwin)
-          mkdir -p "$HOME/.config/zsh/conf.d"
-          ;;
-        *-linux*)
-          mkdir -p "$HOME/.config/zsh/conf.d"
-          ;;
-      esac
+      mkdir -p "$HOME/.config/zsh/conf.d"
       ;;
   esac
 
