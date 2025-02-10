@@ -112,7 +112,10 @@ setup_config_dir() {
 
   # Home manager configurations
   for file in default.nix git.nix vscode.nix zsh.nix zsh-exports.nix zsh-aliases.nix zsh-vim-mode.nix; do
-    fetch_file "home/$file" "$CONFIG_DIR/home/$file"
+    if ! fetch_file "home/$file" "$CONFIG_DIR/home/$file"; then
+      echo "Error: Failed to fetch home/$file"
+      exit 1
+    fi
   done
 
   # Shell configurations - platform aware
