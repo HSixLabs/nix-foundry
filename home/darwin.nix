@@ -45,11 +45,17 @@
   # Darwin-specific file associations
   xdg.enable = true;
 
-  # Hook to update nix-configs when Brewfile changes
+  # Simplified activation hook that runs after Homebrew's setup
   home.activation.updateBrewfile = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if [ -f "$HOME/.config/Brewfile" ]; then
       mkdir -p "${config.home.homeDirectory}/.config/nix-configs"
       cp "$HOME/.config/Brewfile" "${config.home.homeDirectory}/.config/nix-configs/Brewfile"
+      
+      # Ensure Homebrew is in PATH
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+      
+      # Install packages from Brewfile
+      brew bundle install --file="$HOME/.config/Brewfile" || true
     fi
   '';
 } 
