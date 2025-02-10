@@ -1,4 +1,4 @@
-{ config, pkgs, lib, inputs, ... }:
+{ config, pkgs, lib, ... }:
 
 {
   programs.zsh = {
@@ -9,7 +9,12 @@
     plugins = [
       {
         name = "powerlevel10k";
-        src = inputs.powerlevel10k;
+        src = pkgs.fetchFromGitHub {
+          owner = "romkatv";
+          repo = "powerlevel10k";
+          rev = "v1.20.0";
+          sha256 = "0m1j1npx4vx8cl72w8jh7d52gxnhzp8w2w5l1lj6x0g5g9j4prb4";
+        };
         file = "powerlevel10k.zsh-theme";
       }
       {
