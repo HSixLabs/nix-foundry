@@ -97,6 +97,14 @@ setup_windows() {
   fi
 }
 
+# Setup SSL certificates for macOS
+if [[ "$PLATFORM" == *"-darwin" ]]; then
+  sudo mkdir -p /etc/ssl/certs
+  sudo security export-system-root-certificates -o /etc/ssl/certs/ca-certificates.crt
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+fi
+
 main() {
   PLATFORM=$(detect_platform)
   HOST=$(hostname)

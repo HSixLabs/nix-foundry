@@ -77,4 +77,9 @@
       POWERLEVEL9K_SHORTEN_STRATEGY="truncate_middle"
     }
   '';
+
+  home.sessionVariables = {
+    SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
+    NIX_SSL_CERT_FILE = "/etc/ssl/certs/ca-certificates.crt";
+  };
 }
