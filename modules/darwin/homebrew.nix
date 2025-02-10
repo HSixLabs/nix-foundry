@@ -23,6 +23,7 @@
       "homebrew/cask"
       "homebrew/core"
       "homebrew/services"
+      # Add other taps from apps.nix
     ];
 
     # Automatically track new installations
@@ -36,7 +37,9 @@
       cp ~/.config/Brewfile ~/.config/Brewfile.backup
     fi
     
-    # Generate fresh Brewfile
-    brew bundle dump --force --file=~/.config/Brewfile
+    # Install packages from Brewfile
+    if [ -f ~/.config/Brewfile ]; then
+      brew bundle install --file=~/.config/Brewfile
+    fi
   '';
 } 
