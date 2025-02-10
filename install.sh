@@ -174,6 +174,61 @@ setup_windows() {
   fi
 }
 
+setup_homebrew() {
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Installing Homebrew..."
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    
+    # Add Homebrew to PATH for the current session
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      if [[ "$(uname -m)" == "arm64" ]]; then
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+      else
+        eval "$(/usr/local/bin/brew shellenv)"
+      fi
+    fi
+  fi
+
+  # Restore packages if Brewfile exists
+  if [ -f "$HOME/.config/Brewfile" ]; then
+    echo "Restoring Homebrew packages..."
+    brew bundle --file="$HOME/.config/Brewfile"
+  fi
+}
+
+handle_reinstall() {
+  local config_dir="$1"
+  
+  if [ -d "$config_dir" ]; then
+    echo "Existing configuration detected at $config_dir"
+    echo "Options:"
+    echo "1. Backup and reinstall (existing config will be moved to ${config_dir}.backup-$(date +%Y%m%d_%H%M%S))"
+    echo "2. Clean reinstall (existing config will be removed)"
+    echo "3. Cancel"
+    read -p "Please select an option [1-3]: " choice
+    
+    case "$choice" in
+      1)
+        local backup_dir="${config_dir}.backup-$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing configuration to $backup_dir"
+        mv "$config_dir" "$backup_dir"
+        ;;
+      2)
+        echo "Removing existing configuration..."
+        rm -rf "$config_dir"
+        ;;
+      3)
+        echo "Installation cancelled"
+        exit 0
+        ;;
+      *)
+        echo "Invalid option. Installation cancelled"
+        exit 1
+        ;;
+    esac
+  fi
+}
+
 main() {
   PLATFORM=$(detect_platform)
   HOST=$(hostname)
@@ -205,6 +260,9 @@ main() {
       exit 1
       ;;
   esac
+
+  # Handle reinstallation if configuration already exists
+  handle_reinstall "$CONFIG_DIR"
   
   mkdir -p "$CONFIG_DIR"
 
@@ -227,6 +285,9 @@ main() {
     --flake "$CONFIG_DIR#default" \
     --extra-experimental-features "nix-command flakes" \
     --impure
+
+  echo "Installation completed successfully!"
+  echo "Note: You may need to restart your shell for all changes to take effect"
 }
 
 main "$@"

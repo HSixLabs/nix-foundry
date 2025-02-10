@@ -36,9 +36,19 @@
           }
         ];
       };
+      ".config/Brewfile".source = config.lib.file.mkOutOfStoreSymlink 
+        "${config.home.homeDirectory}/.config/nix-configs/Brewfile";
     };
   };
 
   # Darwin-specific file associations
   xdg.enable = true;
+
+  # Hook to update nix-configs when Brewfile changes
+  home.activation.updateBrewfile = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ -f "$HOME/.config/Brewfile" ]; then
+      mkdir -p "${config.home.homeDirectory}/.config/nix-configs"
+      cp "$HOME/.config/Brewfile" "${config.home.homeDirectory}/.config/nix-configs/Brewfile"
+    fi
+  '';
 } 
