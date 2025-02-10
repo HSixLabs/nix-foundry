@@ -189,10 +189,10 @@ setup_homebrew() {
     fi
   fi
 
-  # Restore packages if Brewfile exists
-  if [ -f "$HOME/.config/Brewfile" ]; then
-    echo "Restoring Homebrew packages..."
-    brew bundle --file="$HOME/.config/Brewfile"
+  mkdir -p "$HOME/.config"
+  if [ ! -f "$HOME/.config/Brewfile" ]; then
+    echo "Creating initial Brewfile..."
+    brew bundle dump --file="$HOME/.config/Brewfile"
   fi
 }
 
@@ -215,9 +215,10 @@ main() {
   USERNAME=$USER
   export USER USERNAME HOST PLATFORM
 
-  # Setup SSL certificates first for Darwin
+  # Setup SSL certificates and Homebrew for Darwin
   if [[ "$PLATFORM" == *"-darwin" ]]; then
     setup_ssl_certs
+    setup_homebrew
   fi
 
   # Platform-specific configurations
