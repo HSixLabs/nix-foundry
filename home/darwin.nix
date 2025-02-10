@@ -1,4 +1,4 @@
-{ config, pkgs, lib, users ? import ../users.nix, ... }:
+{ config, pkgs, lib, users, ... }:
 
 {
   imports = [ ./default.nix ];
