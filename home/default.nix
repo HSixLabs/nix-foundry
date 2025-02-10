@@ -16,7 +16,6 @@
     sessionVariables = {
       EDITOR = "nvim";
       VISUAL = "code";
-      ZDOTDIR = "$HOME/.config/zsh";
     };
   };
 

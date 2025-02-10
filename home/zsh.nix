@@ -78,6 +78,8 @@
         };
       }
     ];
+
+    dotDir = ".config/zsh";
   };
 
   home.sessionVariables = {
