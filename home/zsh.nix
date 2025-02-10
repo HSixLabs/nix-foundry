@@ -44,9 +44,6 @@
         source "''${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-''${(%):-%n}.zsh"
       fi
 
-      # Source p10k config
-      [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
       # Source user's custom configs
       for conf in $HOME/.config/zsh/conf.d/*.zsh(N); do
         source $conf
@@ -56,5 +53,9 @@
     dotDir = ".config/zsh";
   };
 
-  home.file.".config/zsh/conf.d/.keep".text = "";
+  home.file = {
+    ".config/zsh/conf.d/.keep".text = "";
+    ".config/zsh/conf.d/p10k.zsh".source = config.lib.file.mkOutOfStoreSymlink 
+      "${config.home.homeDirectory}/.config/zsh/conf.d/p10k.zsh";
+  };
 } 
