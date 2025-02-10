@@ -141,6 +141,7 @@ setup_config_dir() {
       fetch_file "modules/darwin/default.nix" "$CONFIG_DIR/modules/darwin/default.nix"
       fetch_file "modules/darwin/core.nix" "$CONFIG_DIR/modules/darwin/core.nix"
       fetch_file "modules/darwin/fonts.nix" "$CONFIG_DIR/modules/darwin/fonts.nix"
+      fetch_file "modules/darwin/homebrew.nix" "$CONFIG_DIR/modules/darwin/homebrew.nix"
       ;;
     *-linux)
       fetch_file "modules/nixos/default.nix" "$CONFIG_DIR/modules/nixos/default.nix"
