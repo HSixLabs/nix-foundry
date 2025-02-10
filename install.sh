@@ -201,42 +201,8 @@ handle_reinstall() {
   
   if [ -d "$config_dir" ]; then
     echo "Existing configuration detected at $config_dir"
-    echo "Options:"
-    echo "1. Backup and reinstall (existing config will be moved to ${config_dir}.backup-$(date +%Y%m%d_%H%M%S))"
-    echo "2. Clean reinstall (existing config will be removed)"
-    echo "3. Cancel"
-    
-    # Check if script is running interactively
-    if [ -t 0 ]; then
-      # Interactive mode
-      read -p "Please select an option [1-3]: " choice
-    else
-      # Non-interactive mode (default to backup)
-      echo "Running in non-interactive mode. Defaulting to option 1 (backup)"
-      choice=1
-    fi
-    
-    case "$choice" in
-      1)
-        local backup_dir="${config_dir}.backup-$(date +%Y%m%d_%H%M%S)"
-        echo "Backing up existing configuration to $backup_dir"
-        mv "$config_dir" "$backup_dir"
-        ;;
-      2)
-        echo "Removing existing configuration..."
-        rm -rf "$config_dir"
-        ;;
-      3)
-        echo "Installation cancelled"
-        exit 0
-        ;;
-      *)
-        echo "Invalid option. Defaulting to backup (option 1)"
-        local backup_dir="${config_dir}.backup-$(date +%Y%m%d_%H%M%S)"
-        echo "Backing up existing configuration to $backup_dir"
-        mv "$config_dir" "$backup_dir"
-        ;;
-    esac
+    echo "Removing existing configuration for clean reinstall..."
+    rm -rf "$config_dir"
   fi
 }
 
