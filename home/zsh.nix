@@ -46,12 +46,15 @@
 
       # Source p10k config
       [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+      # Source user's custom configs
+      for conf in $HOME/.config/zsh/conf.d/*.zsh(N); do
+        source $conf
+      done
     '';
 
     dotDir = ".config/zsh";
   };
 
-  home.sessionVariables = {
-    ZDOTDIR = "$HOME/.config/zsh";
-  };
+  home.file.".config/zsh/conf.d/.keep".text = "";
 } 

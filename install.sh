@@ -124,19 +124,15 @@ setup_config_dir() {
       ;;
     *)
       # Unix-like systems use ZSH
-      fetch_file "home/shell.nix" "$CONFIG_DIR/home/shell.nix"
       fetch_file "home/zsh.nix" "$CONFIG_DIR/home/zsh.nix"
-      fetch_file "home/zsh-functions.nix" "$CONFIG_DIR/home/zsh-functions.nix"
-      fetch_file "home/zsh-prompt.nix" "$CONFIG_DIR/home/zsh-prompt.nix"
-      fetch_file "home/p10k.nix" "$CONFIG_DIR/home/p10k.nix"
       
       # Create ZSH config directory based on platform
       case "$PLATFORM" in
         *-darwin)
-          mkdir -p "$HOME/.config/zsh"
+          mkdir -p "$HOME/.config/zsh/conf.d"
           ;;
         *-linux*)
-          mkdir -p "$HOME/.config/zsh"
+          mkdir -p "$HOME/.config/zsh/conf.d"
           ;;
       esac
       ;;
@@ -145,7 +141,6 @@ setup_config_dir() {
   # Shared modules (all platforms)
   fetch_file "modules/shared/base.nix" "$CONFIG_DIR/modules/shared/base.nix"
   fetch_file "modules/shared/programs/nix.nix" "$CONFIG_DIR/modules/shared/programs/nix.nix"
-  fetch_file "modules/shared/programs/shell.nix" "$CONFIG_DIR/modules/shared/programs/shell.nix"
 
   # Platform-specific modules
   case "$PLATFORM" in
@@ -235,3 +230,60 @@ main() {
 }
 
 main "$@"
+
+cat > ~/.config/zsh/conf.d/exports.zsh << 'EOL'
+# XDG paths
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CACHE_HOME="$HOME/.cache"
+
+# Path
+export PATH="$HOME/.local/bin:$PATH"
+
+# Editor
+export EDITOR="nvim"
+export VISUAL="code"
+export TERMINAL="alacritty"
+export BROWSER="brave"
+export MANPAGER='nvim +Man!'
+export MANWIDTH=999
+export PATH=$HOME/.cargo/bin:$PATH
+export PATH=$HOME/.local/share/go/bin:$PATH
+export GOPATH=$HOME/.local/share/go
+export PATH=$HOME/.fnm:$PATH
+export XDG_CURRENT_DESKTOP="Wayland"
+EOL
+
+cat > ~/.config/zsh/conf.d/vim-mode.zsh << 'EOL'
+# Enable vi mode
+bindkey -v
+export KEYTIMEOUT=1
+
+# Use vim keys in tab complete menu
+bindkey -M menuselect 'h' vi-backward-char
+bindkey -M menuselect 'k' vi-up-line-or-history
+bindkey -M menuselect 'l' vi-forward-char
+bindkey -M menuselect 'j' vi-down-line-or-history
+
+# Change cursor shape for different vi modes
+function zle-keymap-select {
+  if [[ ${KEYMAP} == vicmd ]] ||
+     [[ $1 = 'block' ]]; then
+    echo -ne '\e[1 q'
+  elif [[ ${KEYMAP} == main ]] ||
+       [[ ${KEYMAP} == viins ]] ||
+       [[ ${KEYMAP} = "" ]] ||
+       [[ $1 = 'beam' ]]; then
+    echo -ne '\e[5 q'
+  fi
+}
+zle -N zle-keymap-select
+EOL
+
+cat > ~/.config/zsh/conf.d/aliases.zsh << 'EOL'
+# Your aliases here
+alias ls='ls --color=auto'
+alias ll='ls -la'
+alias vim='nvim'
+# ... add your other aliases
+EOL
