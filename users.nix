@@ -1,15 +1,36 @@
-{ hostName }:
+{ hostName, system ? "x86_64-linux" }:
 
 let
-  uname = builtins.getEnv "USER";
-  defaultUser = builtins.getEnv "NIX_DEFAULT_USER";
-  # Add debug trace
-  _ = builtins.trace "USER env var: ${builtins.toString uname}" null;
+  # Try multiple methods to get the username
+  uname = let 
+    user = builtins.getEnv "USER";
+    username = builtins.getEnv "USERNAME";
+    logname = builtins.getEnv "LOGNAME";
+    nixUser = builtins.getEnv "NIX_USER";  # New dedicated variable
+  in
+    if nixUser != "" then nixUser
+    else if user != "" then user
+    else if username != "" then username
+    else if logname != "" then logname
+    else throw ''
+      No username found in environment variables.
+      Please set NIX_USER environment variable before running home-manager.
+      Example: export NIX_USER=$(whoami)
+    '';
+    
+  isDarwin = system == "aarch64-darwin" || system == "x86_64-darwin";
+  isWindows = system == "x86_64-windows";
+  homePrefix = if isDarwin then "/Users"
+              else if isWindows then "C:/Users"
+              else "/home";
+  
+  # Add more detailed debug trace
+  _ = builtins.trace "Debug: NIX_USER=${builtins.getEnv "NIX_USER"}, USER=${builtins.getEnv "USER"}" null;
 in
 rec {
-  username = if uname != "" then uname 
-             else if defaultUser != "" then defaultUser
-             else "shoffman";
-  homeDirectory = "/Users/${username}";
+  username = uname;
+  homeDirectory = if isWindows 
+                 then "${homePrefix}\\${username}"
+                 else "${homePrefix}/${username}";
   inherit hostName;
-} 
+}

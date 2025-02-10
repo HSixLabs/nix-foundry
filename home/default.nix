@@ -9,7 +9,7 @@
 
   home = {
     username = users.username;
-    homeDirectory = users.homeDirectory;
+    homeDirectory = lib.mkForce users.homeDirectory;
     stateVersion = "23.11";
     
     sessionVariables = {
