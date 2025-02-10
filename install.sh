@@ -255,6 +255,9 @@ export XDG_CURRENT_DESKTOP="Wayland"
 EOL
 
 cat > ~/.config/zsh/conf.d/vim-mode.zsh << 'EOL'
+# Load required module for menuselect keymap
+zmodload zsh/complist
+
 # Enable vi mode
 bindkey -v
 export KEYTIMEOUT=1
