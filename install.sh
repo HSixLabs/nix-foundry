@@ -198,13 +198,8 @@ main() {
       mkdir -p ~/.config/zsh
       
       # First build the initial system
-      echo "Debug environment:"
-      echo "HOSTNAME='${HOSTNAME}'"
-      echo "USER='${USER}'"
-      echo "PWD='${PWD}'"
-      echo "System type: $(uname -sm)"
       echo "Building configuration for ${HOSTNAME}..."
-      CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt nix build "$CONFIG_DIR#darwinConfigurations.${HOSTNAME}.system" --show-trace
+      HOSTNAME="${HOSTNAME}" CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt nix build "$CONFIG_DIR#darwinConfigurations.${HOSTNAME}.system" --show-trace
       
       # Move certificates out of the way before activation
       echo "Moving certificates for activation..."

@@ -36,6 +36,9 @@
   outputs = { self, nixpkgs, home-manager, darwin, flake-utils, rust-overlay, nixos-hardware, zsh-powerlevel10k, ... } @ inputs:
     let
       hostName = builtins.getEnv "HOSTNAME";
+      # Add debug trace
+      _ = builtins.trace "Flake evaluation: HOSTNAME=${hostName}" null;
+      
       users = import ./users.nix {
         inherit hostName;
       };
@@ -43,38 +46,43 @@
       hm = inputs.home-manager.lib;
       
       # Helper function to create Darwin system configuration
-      mkDarwinSystem = hostname: darwin.lib.darwinSystem {
-        system = if builtins.currentSystem == "aarch64-darwin" 
-                then "aarch64-darwin" 
-                else "x86_64-darwin";
-        specialArgs = { inherit users hostName lib hm; };
-        modules = [
-          ./modules/darwin
-          ./modules/shared/base.nix
-          home-manager.darwinModules.home-manager
-          {
-            networking.hostName = hostname;
-            nix.settings = {
-              trusted-users = [ users.username ];
-              experimental-features = [ "nix-command" "flakes" ];
-            };
-            system.stateVersion = 4;
-            nix.configureBuildUsers = true;
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-              users.${users.username} = {
-                imports = [ ./home/darwin.nix ];
-                home = {
-                  username = users.username;
-                  homeDirectory = users.homeDirectory;
-                  stateVersion = "23.11";
+      mkDarwinSystem = hostname: 
+        let
+          # Add debug trace
+          _ = builtins.trace "Creating Darwin system for hostname=${hostname}" null;
+        in
+        darwin.lib.darwinSystem {
+          system = if builtins.currentSystem == "aarch64-darwin" 
+                  then "aarch64-darwin" 
+                  else "x86_64-darwin";
+          specialArgs = { inherit users hostName lib hm; };
+          modules = [
+            ./modules/darwin
+            ./modules/shared/base.nix
+            home-manager.darwinModules.home-manager
+            {
+              networking.hostName = hostname;
+              nix.settings = {
+                trusted-users = [ users.username ];
+                experimental-features = [ "nix-command" "flakes" ];
+              };
+              system.stateVersion = 4;
+              nix.configureBuildUsers = true;
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                users.${users.username} = {
+                  imports = [ ./home/darwin.nix ];
+                  home = {
+                    username = users.username;
+                    homeDirectory = users.homeDirectory;
+                    stateVersion = "23.11";
+                  };
                 };
               };
-            };
-          }
-        ];
-      };
+            }
+          ];
+        };
 
       # Helper function to create NixOS system configuration
       mkNixosSystem = { system, hostname }: nixpkgs.lib.nixosSystem {
