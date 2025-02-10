@@ -51,8 +51,12 @@
     plugins = [
       {
         name = "powerlevel10k";
-        src = pkgs.zsh-powerlevel10k;
-        file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+        src = pkgs.fetchFromGitHub {
+          owner = "romkatv";
+          repo = "powerlevel10k";
+          rev = "35833ea15f14b71dbcebc7e54c104d8d56ca5268";
+          sha256 = "16rkmnak279xwi2qb3h2rk2940czg193mhim25lf61jvd8nn1k4a";
+        };
       }
       {
         name = "zsh-autosuggestions";
@@ -70,7 +74,7 @@
           owner = "hlissner";
           repo = "zsh-autopair";
           rev = "34a8bca0c18fcf3ab1561caef9790abffc1d3d49";
-          sha256 = "ES5vJXHjAKw/VHjWs8Au/3R+/aotSbY7PWnWAMzCR8E=";
+          sha256 = "1x16y24hbwcaxfhqabw4x26jmpxzz2zzmlvs9nnbzaxyi20cwfyz";
         };
       }
     ];

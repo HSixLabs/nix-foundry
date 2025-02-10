@@ -2,7 +2,7 @@
 
 {
   imports = [
-    ./shell.nix
+    ./zsh.nix
     ./git.nix
     ./vscode.nix
     ./zsh.nix
