@@ -81,9 +81,7 @@ fetch_file() {
   curl -fsSL \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3.raw" \
-    -H "Cache-Control: no-cache" \
-    -v \
-    "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}&$(date +%s)" \
+    "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
     > "$output" || {
     echo "Error: Failed to fetch ${path}"
     return 1
@@ -99,7 +97,7 @@ setup_config_dir() {
   fetch_file "users.nix" "$CONFIG_DIR/users.nix"
 
   # Home manager configurations
-  for file in default.nix git.nix shell.nix vscode.nix; do
+  for file in default.nix git.nix shell.nix vscode.nix zsh.nix p10k.nix; do
     fetch_file "home/$file" "$CONFIG_DIR/home/$file"
   done
 
@@ -107,6 +105,11 @@ setup_config_dir() {
   fetch_file "modules/shared/base.nix" "$CONFIG_DIR/modules/shared/base.nix"
   fetch_file "modules/shared/programs/nix.nix" "$CONFIG_DIR/modules/shared/programs/nix.nix"
   fetch_file "modules/shared/programs/shell.nix" "$CONFIG_DIR/modules/shared/programs/shell.nix"
+
+  # Darwin modules
+  fetch_file "modules/darwin/default.nix" "$CONFIG_DIR/modules/darwin/default.nix"
+  fetch_file "modules/darwin/core.nix" "$CONFIG_DIR/modules/darwin/core.nix"
+  fetch_file "modules/darwin/fonts.nix" "$CONFIG_DIR/modules/darwin/fonts.nix"
 }
 
 # Add Windows-specific setup
