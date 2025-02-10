@@ -88,6 +88,14 @@
         # Hot reload configuration
         typeset -g POWERLEVEL9K_DISABLE_HOT_RELOAD=true
         (( ! $+functions[p10k] )) || p10k reload
+
+        # Colors from your original config
+        typeset -g POWERLEVEL9K_VIM_SHELL_FOREGROUND=34
+        typeset -g POWERLEVEL9K_MIDNIGHT_COMMANDER_FOREGROUND=178
+        typeset -g POWERLEVEL9K_NIX_SHELL_FOREGROUND=74
+        typeset -g POWERLEVEL9K_NODENV_FOREGROUND=70
+        typeset -g POWERLEVEL9K_NVM_FOREGROUND=70
+        typeset -g POWERLEVEL9K_XPLR_FOREGROUND=72
       }
 
       # Tell p10k configure which file it should overwrite
