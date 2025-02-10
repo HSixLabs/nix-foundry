@@ -138,7 +138,7 @@ main() {
   OS=$(detect_os)
   
   # Get the hostname and username
-  HOSTNAME=$(hostname -s)}
+  HOSTNAME=$(hostname -s)
   USERNAME=$(whoami)
   
   # Export HOSTNAME and USERNAME for Nix evaluation
