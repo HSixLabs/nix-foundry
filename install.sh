@@ -111,7 +111,7 @@ setup_config_dir() {
   fetch_file "users.nix" "$CONFIG_DIR/users.nix"
 
   # Home manager configurations
-  for file in default.nix git.nix vscode.nix zsh.nix zsh-exports.nix zsh-aliases.nix zsh-vim-mode.nix zsh-functions.nix; do
+  for file in default.nix git.nix vscode.nix zsh.nix zsh-exports.nix zsh-aliases.nix zsh-vim-mode.nix zsh-functions.nix darwin.nix; do
     if ! fetch_file "home/$file" "$CONFIG_DIR/home/$file"; then
       echo "Error: Failed to fetch home/$file"
       exit 1
