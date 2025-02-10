@@ -172,12 +172,6 @@ setup_homebrew() {
     return 0
   fi
 
-  if ! command -v brew >/dev/null 2>&1; then
-    echo "Installing Homebrew..."
-    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  fi
-
-  # Ensure Homebrew is in PATH for both arm64 and x86_64
   local brew_path=""
   if [[ "$(uname -m)" == "arm64" ]]; then
     brew_path="/opt/homebrew/bin/brew"
@@ -185,7 +179,24 @@ setup_homebrew() {
     brew_path="/usr/local/bin/brew"
   fi
 
-  # Add Homebrew to PATH for current session
+  # Check if Homebrew is already installed and in PATH
+  if command -v brew >/dev/null 2>&1; then
+    echo "Homebrew is already installed and in PATH"
+    return 0
+  fi
+
+  # Check if Homebrew is installed but not in PATH
+  if [ -f "$brew_path" ]; then
+    echo "Homebrew is installed but not in PATH, adding to PATH..."
+    eval "$($brew_path shellenv)"
+    return 0
+  fi
+
+  # Install Homebrew if not present
+  echo "Installing Homebrew..."
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  
+  # Add to PATH immediately after install
   eval "$($brew_path shellenv)"
 
   # Initialize Homebrew in shell config
