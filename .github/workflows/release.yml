@@ -21,6 +21,9 @@ jobs:
         id: get_latest_tag
         run: |
           latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          if [[ ! $latest_tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            latest_tag=$(echo $latest_tag | sed -E 's/^v([0-9]+)\.([0-9]+)$/v\1.\2.0/')
+          fi
           echo "latest_tag=${latest_tag}" >> $GITHUB_OUTPUT
 
       - name: Determine version bump
