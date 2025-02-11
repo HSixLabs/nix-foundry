@@ -18,7 +18,7 @@ jobs:
       - id: check
         run: |
           commit_msg=$(git log -1 --pretty=%B)
-          if [[ "$commit_msg" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|revert)(\([^)]+\))?(!)?: ]]; then
+          if [[ "$commit_msg" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|revert)(\([a-zA-Z0-9-]+\))?!?: ]]; then
             echo "should_test=true" >> $GITHUB_OUTPUT
           else
             echo "should_test=false" >> $GITHUB_OUTPUT
