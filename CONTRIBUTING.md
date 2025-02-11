@@ -1,10 +1,10 @@
 # Contributing to nix-configs
 
-Thank you for your interest in contributing to nix-configs! This document provides guidelines and information about contributing to this project.
+Thanks for your interest in my Nix configuration! While this is my personal setup, I welcome contributions that might help others using it as a reference or template.
 
 ## Commit Message Guidelines
 
-We use [Conventional Commits](https://www.conventionalcommits.org/) for automated semantic versioning. Your commit messages should follow this format:
+I use [Conventional Commits](https://www.conventionalcommits.org/) for automated semantic versioning. Your commit messages should follow this format:
 
 ```none
 <type>[optional scope][!]: <description>
@@ -20,7 +20,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/) for automate
 - `fix`: A bug fix (patch version bump)
 - `docs`: Documentation changes
 - `style`: Changes that don't affect code meaning
-- `refactor`: Code changes that neither fix a bug nor add a feature
+- `refactor`: Code changes that neither fix bugs nor add features
 - `perf`: Performance improvements
 - `test`: Adding or fixing tests
 - `chore`: Changes to build process or auxiliary tools
@@ -52,7 +52,7 @@ BREAKING CHANGE: x86 windows support has been removed
 
 ## Development Workflow
 
-1. Fork the repository
+1. Clone the repository
 2. Set up pre-commit hooks:
 
    ```bash
@@ -85,7 +85,7 @@ BREAKING CHANGE: x86 windows support has been removed
    - Validate commit messages follow conventional commits format
 
 6. Commit your changes (commitizen will help format your message)
-7. Push to your fork
+7. Push your changes
 8. Create a Pull Request
 
 ## Testing
@@ -98,24 +98,22 @@ Before submitting a PR:
    nix flake check
    ```
 
-2. Test your changes on supported platforms:
+2. Test your changes on your platform:
 
    ```bash
-   # For your current platform
    nix build .#homeConfigurations.$USER-$(uname -m)-$(uname -s | tr '[:upper:]' '[:lower:]').activationPackage
    ```
 
 ## Release Process
 
-Releases are automated based on conventional commits:
+The release process is automated based on conventional commits:
 
 - Breaking changes trigger a major version bump
 - New features trigger a minor version bump
 - Bug fixes and other changes trigger a patch version bump
 
-The release workflow:
+When changes are merged to `main`:
 
-1. Merges to `main` trigger version evaluation
-2. Version is bumped based on commit messages
-3. Changelog is generated automatically
-4. New release is created with generated notes
+1. Version is evaluated based on commit messages
+2. Changelog is generated automatically
+3. New release is created with generated notes

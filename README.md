@@ -1,6 +1,6 @@
 # nix-configs
 
-A comprehensive Nix configuration system supporting Darwin (macOS), NixOS, and Windows (experimental) environments.
+My Nix configuration system supporting Darwin (macOS), NixOS, and Windows (experimental) environments.
 
 ## Features
 
@@ -21,142 +21,108 @@ A comprehensive Nix configuration system supporting Darwin (macOS), NixOS, and W
 
 ## Prerequisites
 
-- Nix package manager installed
-- Git installed
-- GitHub personal access token with repo scope (set as `GITHUB_TOKEN` environment variable)
+- Nix package manager
+- Git
+- GitHub personal access token (set as `GITHUB_TOKEN` environment variable)
 - For macOS: Xcode Command Line Tools
 
-## Installation & Updates
+## Installation
 
-This configuration uses an install script that handles all installation and maintenance operations.
-
-Using curl:
+First, install Nix if you haven't already:
 
 ```bash
-# Choose one of: install, update, or reinstall
-curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- <operation>
+# macOS/Linux
+sh <(curl -L https://nixos.org/nix/install) --daemon
+
+# Windows (requires WSL2)
+sh <(curl -L https://nixos.org/nix/install) --no-daemon
 ```
 
-Or using wget:
+Then install the configuration:
 
 ```bash
-# Choose one of: install, update, or reinstall
-wget -qO- --header="Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- <operation>
-```
-
-For example, using either curl:
-
-```bash
-# Fresh installation
+# Fresh install
 curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- install
-
-# Update existing installation
-curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- update
-
-# Clean reinstall
-curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- reinstall
 ```
 
-Or wget:
+Other operations:
 
-```bash
-# Fresh installation
-wget -qO- --header="Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- install
+- `update`: Updates existing installation
+- `reinstall`: Performs clean reinstall (warning: removes current config)
 
-# Update existing installation
-wget -qO- --header="Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- update
+## Post-install Setup
 
-# Clean reinstall
-wget -qO- --header="Authorization: token ${GITHUB_TOKEN}" https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- reinstall
-```
-
-The install script handles:
-
-- Fresh installation setup
-- Updates to existing installations (preserving local changes)
-- Clean reinstallation when needed
-- Platform-specific setup (macOS, NixOS, Windows)
-- Configuration file management
-- Home Manager installation
-- Homebrew setup (macOS only)
-
-Operations:
-
-- `install`: Performs a fresh installation
-- `update`: Updates existing installation while preserving local changes
-- `reinstall`: Removes existing configuration and performs a clean reinstall
-
-> **Note**: The `reinstall` operation will remove the current configuration. Make sure to backup any local changes before using this option.
-
-## Post-install Configuration
-
-### Shell Configuration
-
-Configure Powerlevel10k:
+1. Configure Powerlevel10k:
 
 ```bash
 POWERLEVEL9K_CONFIG_FILE="$HOME/.config/zsh/conf.d/p10k.zsh" p10k configure
 ```
 
-### Platform-Specific Setup
+2. For macOS:
 
-#### macOS
+    - Homebrew packages will be installed automatically
+    - System defaults will be configured
+    - iTerm2 settings will be applied on next launch
 
-- Automatically configures SSL certificates
-- Sets up Homebrew and manages packages
-- Configures system defaults and fonts
-- Integrates with iTerm2
+3. For NixOS:
 
-#### NixOS
+    - System configuration will be applied automatically
+    - Reboot may be required for some changes
 
-- Full system configuration
-- GNOME desktop environment
-- Hardware and network configuration
-- Development tools and utilities
+4. For Windows:
 
-#### Windows (Experimental)
-
-- WSL integration
-- PowerShell configuration
-- Windows-specific path handling
+    - WSL2 must be enabled
+    - Some features may require manual configuration
 
 ## Directory Structure
 
-```bash
+```shell
 .
 ├── flake.nix           # Main flake configuration
 ├── home/               # Home-manager configurations
 ├── lib/                # Helper functions and utilities
-├── modules/            # System modules
-│   ├── darwin/         # macOS-specific configurations
-│   ├── nixos/         # NixOS-specific configurations
-│   ├── shared/        # Cross-platform configurations
-│   └── windows/       # Windows-specific configurations
-└── users.nix          # User configuration
+└── modules/            # System modules
+    ├── darwin/         # macOS-specific configurations
+    ├── nixos/         # NixOS-specific configurations
+    ├── shared/        # Cross-platform configurations
+    └── windows/       # Windows-specific configurations
 ```
 
 ## Customization
 
-### Adding New Users
+Add packages to:
 
-Edit `users.nix` to add new users or modify existing ones. The system will automatically detect the current user and configure accordingly.
+- `modules/`: System-wide packages
+- `home/`: User-specific packages
+- `modules/darwin/homebrew.nix`: macOS-specific packages
 
-### Adding New Packages
+Local customizations:
 
-- System-wide packages: Add to respective module files in `modules/`
-- User-specific packages: Add to configurations in `home/`
-- macOS-specific packages: Add to `modules/darwin/homebrew.nix`
+- ZSH: Create `~/.zshrc.local` for machine-specific settings
+- Git: Edit `home/git.nix` for Git configuration
+- VSCode: Modify `home/vscode.nix` for editor settings
+
+Note: The configuration automatically detects your username and sets up accordingly - no need to modify `users.nix` unless you want to change the default behavior.
 
 ## Contributing
 
-We use conventional commits for automated semantic versioning. Please see our
-[Contributing Guidelines](CONTRIBUTING.md) for details on:
+While this is my personal configuration, I welcome contributions! You can:
 
-- Commit message format
-- Development workflow
-- Testing requirements
-- Release process
+- 🔍 Fork it as a starting point for your own config
+- 🔍 Use it as a reference or template for your own config
+- 🐛 Report issues if you find them
+- 💡 Suggest improvements
+- 🤝 Submit PRs for bugs or enhancements
+
+For consistency, please use conventional commits when contributing:
+
+- `feat`: New features
+- `fix`: Bug fixes
+- `docs`: Documentation changes
+- `refactor`: Code changes that neither fix bugs nor add features
+
+See [Contributing Guidelines](CONTRIBUTING.md) for more details.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see the LICENSE file for details.
