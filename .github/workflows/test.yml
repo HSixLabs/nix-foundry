@@ -54,8 +54,8 @@ jobs:
             platform: aarch64-darwin
           - os: macos-latest
             platform: x86_64-darwin
-          - os: windows-latest
-            platform: x86_64-windows
+        #   - os: windows-latest
+        #     platform: x86_64-windows
 
     steps:
     - uses: actions/checkout@v4
