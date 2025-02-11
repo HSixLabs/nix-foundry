@@ -71,4 +71,8 @@ jobs:
         echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
         nix flake check
-        nix build ".#homeConfigurations.test-${{ matrix.platform }}.activationPackage" --system ${{ matrix.platform }}
+        if [[ "${{ matrix.platform }}" == *"-darwin" ]]; then
+          nix build ".#darwinConfigurations.default.system" --system ${{ matrix.platform }}
+        else
+          nix build ".#homeConfigurations.default.activationPackage" --system ${{ matrix.platform }}
+        fi
