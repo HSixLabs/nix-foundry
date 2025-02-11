@@ -1,11 +1,32 @@
 name: Test
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
 jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should_test: ${{ steps.check.outputs.should_test }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: check
+        run: |
+          commit_msg=$(git log -1 --pretty=%B)
+          if [[ "$commit_msg" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|revert)(\([^)]+\))?(!)?: ]]; then
+            echo "should_test=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_test=false" >> $GITHUB_OUTPUT
+          fi
+
   pre-commit:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_test == 'true'
     name: Pre-commit checks
     runs-on: ubuntu-latest
     steps:
@@ -38,8 +59,9 @@ jobs:
           SKIP=no-commit-to-branch nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit run --all-files"
 
   build:
+    needs: [check-commit, pre-commit]
+    if: needs.check-commit.outputs.should_test == 'true'
     name: Test on ${{ matrix.name }}
-    needs: pre-commit
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
