@@ -24,7 +24,11 @@ jobs:
       - name: Determine version bump
         id: version_bump
         run: |
-          commits=$(git log ${{ steps.get_latest_tag.outputs.latest_tag }}..HEAD --pretty=format:"%s")
+          if git rev-parse "v0.0.0" >/dev/null 2>&1; then
+            commits=$(git log ${{ steps.get_latest_tag.outputs.latest_tag }}..HEAD --pretty=format:"%s")
+          else
+            commits=$(git log --pretty=format:"%s")
+          fi
 
           bump_type="patch"
 

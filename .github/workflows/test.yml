@@ -76,13 +76,5 @@ jobs:
         HOST: ${{ matrix.os }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Debug output
-        echo "Debug: NIX_USER=$NIX_USER"
-        echo "Debug: USER=$USER"
-        echo "Debug: USERNAME=$USERNAME"
-        echo "Debug: LOGNAME=$LOGNAME"
-        echo "Debug: HOST=$HOST"
-
-        # Use the install script which handles environment setup
         chmod +x ./install.sh
         ./install.sh install
