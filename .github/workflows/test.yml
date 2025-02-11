@@ -65,8 +65,19 @@ jobs:
     - name: Test flake builds
       env:
         NIX_USER: runner
+        USER: runner
+        USERNAME: runner
+        LOGNAME: runner
         HOST: ${{ matrix.os }}
       run: |
+        # Export all environment variables to ensure they're available to subprocesses
+        export NIX_USER="$NIX_USER"
+        export USER="$USER"
+        export USERNAME="$USERNAME"
+        export LOGNAME="$LOGNAME"
+        export HOST="$HOST"
+
+        # Debug output
         echo "Debug: NIX_USER=$NIX_USER"
         echo "Debug: USER=$USER"
         echo "Debug: USERNAME=$USERNAME"
@@ -76,9 +87,12 @@ jobs:
         mkdir -p ~/.config/nix
         echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
-        nix flake check
+        # Run nix commands with explicit environment
+        NIX_USER="$NIX_USER" USER="$USER" USERNAME="$USERNAME" LOGNAME="$LOGNAME" HOST="$HOST" nix flake check
         if [[ "${{ matrix.platform }}" == *"-darwin" ]]; then
-          nix build ".#darwinConfigurations.default.system" --system ${{ matrix.platform }}
+          NIX_USER="$NIX_USER" USER="$USER" USERNAME="$USERNAME" LOGNAME="$LOGNAME" HOST="$HOST" \
+            nix build ".#darwinConfigurations.default.system" --system ${{ matrix.platform }}
         else
-          nix build ".#homeConfigurations.default.activationPackage" --system ${{ matrix.platform }}
+          NIX_USER="$NIX_USER" USER="$USER" USERNAME="$USERNAME" LOGNAME="$LOGNAME" HOST="$HOST" \
+            nix build ".#homeConfigurations.default.activationPackage" --system ${{ matrix.platform }}
         fi
