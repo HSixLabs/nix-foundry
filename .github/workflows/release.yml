@@ -35,7 +35,7 @@ jobs:
           while IFS= read -r commit; do
             if [[ "$commit" =~ ^feat[(!):] ]]; then
               bump_type="minor"
-            elif [[ "$commit" =~ ^BREAKING[ -]CHANGE: || "$commit" =~ ^[a-z]+!: ]]; then
+            elif [[ "$commit" =~ ^BREAKING[[:space:]-]CHANGE: || "$commit" =~ ^[a-z]+!: ]]; then
               bump_type="major"
               break
             fi
