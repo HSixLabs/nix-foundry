@@ -36,7 +36,8 @@ jobs:
           git commit -m "style: fix formatting" || true
 
       - name: Run pre-commit checks
-        run: nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit run --all-files"
+        run: |
+          SKIP=no-commit-to-branch nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit run --all-files"
 
   build:
     name: Test on ${{ matrix.os }}
