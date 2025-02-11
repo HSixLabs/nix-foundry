@@ -1,7 +1,6 @@
 { config, pkgs, lib, ... }:
 
 {
-  # System configuration
   system = {
     defaults = {
       dock = {
@@ -46,23 +45,19 @@
         echo "done"
       '';
       postActivation.text = ''
-        # Reload system configuration
         /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u
       '';
     };
   };
 
-  # Darwin-specific services
   services = {
     nix-daemon.enable = true;
   };
 
-  # Core system programs
   programs = {
     zsh.enable = true;
     nix-index.enable = true;
   };
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 }

@@ -23,10 +23,8 @@
     };
   };
 
-  # Let Home Manager install and manage itself
   programs.home-manager.enable = true;
 
-  # Common program configurations
   programs = {
     direnv = {
       enable = true;

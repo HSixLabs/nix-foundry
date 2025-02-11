@@ -1,12 +1,11 @@
 { hostName, system ? "x86_64-linux" }:
 
 let
-  # Try multiple methods to get the username
   uname = let 
     user = builtins.getEnv "USER";
     username = builtins.getEnv "USERNAME";
     logname = builtins.getEnv "LOGNAME";
-    nixUser = builtins.getEnv "NIX_USER";  # New dedicated variable
+    nixUser = builtins.getEnv "NIX_USER";
   in
     if nixUser != "" then nixUser
     else if user != "" then user
@@ -24,7 +23,6 @@ let
               else if isWindows then "C:/Users"
               else "/home";
   
-  # Add more detailed debug trace
   _ = builtins.trace "Debug: NIX_USER=${builtins.getEnv "NIX_USER"}, USER=${builtins.getEnv "USER"}" null;
 in
 rec {
