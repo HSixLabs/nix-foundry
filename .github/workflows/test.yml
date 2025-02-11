@@ -40,7 +40,7 @@ jobs:
           SKIP=no-commit-to-branch nix-shell -p pre-commit nixpkgs-fmt --run "pre-commit run --all-files"
 
   build:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.name }}
     needs: pre-commit
     runs-on: ${{ matrix.os }}
     strategy:
@@ -49,14 +49,19 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: aarch64-linux
+            name: Ubuntu (ARM64)
           - os: ubuntu-latest
             platform: x86_64-linux
+            name: Ubuntu (x86_64)
           - os: macos-latest
             platform: aarch64-darwin
+            name: macOS (Apple Silicon)
           - os: macos-latest
             platform: x86_64-darwin
+            name: macOS (Intel)
         #   - os: windows-latest
         #     platform: x86_64-windows
+        #     name: Windows (x86_64)
 
     steps:
     - uses: actions/checkout@v4
@@ -76,13 +81,5 @@ jobs:
         HOST: ${{ matrix.os }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Debug output
-        echo "Debug: NIX_USER=$NIX_USER"
-        echo "Debug: USER=$USER"
-        echo "Debug: USERNAME=$USERNAME"
-        echo "Debug: LOGNAME=$LOGNAME"
-        echo "Debug: HOST=$HOST"
-
-        # Use the install script which handles environment setup
         chmod +x ./install.sh
         ./install.sh install
