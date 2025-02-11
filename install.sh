@@ -3,27 +3,29 @@
 setup_ssl_certs() {
   sudo mkdir -p /etc/ssl/certs
   sudo chmod 755 /etc/ssl/certs
-  
+
   echo "Setting up SSL certificates..."
-  sudo security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain > /tmp/certs.pem
-  sudo security find-certificate -a -p /Library/Keychains/System.keychain >> /tmp/certs.pem
+  security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain | sudo tee /tmp/certs.pem > /dev/null
+  sudo security find-certificate -a -p /Library/Keychains/System.keychain | sudo tee -a /tmp/certs.pem
   sudo mv /tmp/certs.pem /etc/ssl/certs/ca-certificates.crt
   sudo chmod 644 /etc/ssl/certs/ca-certificates.crt
-  
+
   if [ ! -f "/etc/ssl/certs/ca-certificates.crt" ]; then
     echo "Error: Failed to create SSL certificates"
     exit 1
   fi
-  
+
   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
   export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
   export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 }
 
 detect_platform() {
-  local os=$(uname -s)
-  local arch=$(uname -m)
-  
+  local os
+  local arch
+  os=$(uname -s)
+  arch=$(uname -m)
+
   case "$os" in
     Darwin*)
       case "$arch" in
@@ -33,7 +35,7 @@ detect_platform() {
       ;;
     Linux*)
       case "$arch" in
-        aarch64|arm64) 
+        aarch64|arm64)
           echo "aarch64-linux"
           ;;
         x86_64)
@@ -60,21 +62,22 @@ fetch_file() {
   local output="$2"
   local repo="shawnkhoffman/nix-configs"
   local branch="main"
-  
+
   mkdir -p "$(dirname "$output")"
-  
+
   if [ -f "$path" ]; then
     cp "$path" "$output"
     return 0
   fi
-  
+
   if [ -z "$GITHUB_TOKEN" ]; then
     echo "Error: GITHUB_TOKEN environment variable is required for remote installation"
     exit 1
   fi
-  
+
   echo "Fetching $path..."
-  local response=$(curl -fsSL \
+  local response
+  response=$(curl -fsSL \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3.raw" \
     -H "Cache-Control: no-cache, no-store, must-revalidate" \
@@ -83,17 +86,17 @@ fetch_file() {
     -w "%{http_code}" \
     "https://api.github.com/repos/${repo}/contents/${path}?ref=${branch}" \
     -o "$output" 2>/dev/null)
-    
+
   if [ "$response" != "200" ]; then
     echo "Error: Failed to fetch ${path} (HTTP ${response})"
     return 1
   fi
-  
+
   if [ ! -s "$output" ]; then
     echo "Error: Empty file received for ${path}"
     return 1
   fi
-  
+
   echo "Successfully fetched ${path}"
   return 0
 }
@@ -143,7 +146,7 @@ setup_windows() {
   if [ "$PLATFORM" = "x86_64-windows" ]; then
     APPDATA="${HOME}/AppData/Roaming"
     mkdir -p "$APPDATA"
-    
+
     if [ ! -d "$HOME/.config" ]; then
       mkdir -p "$HOME/.config"
     fi
@@ -175,7 +178,7 @@ setup_homebrew() {
 
   echo "Installing Homebrew..."
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  
+
   eval "$($brew_path shellenv)"
 
   mkdir -p "$HOME/.config/zsh/conf.d"
@@ -201,7 +204,7 @@ EOL
 
 handle_update() {
   local config_dir="$1"
-  
+
   if [ ! -d "$config_dir" ]; then
     echo "No existing configuration found at $config_dir"
     echo "Performing fresh installation..."
@@ -209,13 +212,14 @@ handle_update() {
   fi
 
   echo "Updating existing configuration at $config_dir"
-  
-  local backup_dir="$config_dir.backup-$(date +%Y%m%d-%H%M%S)"
+
+  local backup_dir
+  backup_dir="$config_dir.backup-$(date +%Y%m%d-%H%M%S)"
   echo "Creating backup at $backup_dir"
   cp -r "$config_dir" "$backup_dir"
-  
+
   setup_config_dir_update
-  
+
   return 0
 }
 
@@ -231,27 +235,28 @@ setup_config_dir_update() {
 
 has_local_changes() {
   local file="$1"
-  local temp_file="/tmp/$(basename "$file")"
-  
+  local temp_file
+  temp_file="/tmp/$(basename "$file")"
+
   fetch_file "$(basename "$file")" "$temp_file"
-  
+
   if [ ! -f "$file" ]; then
     rm -f "$temp_file"
     return 1
   fi
-  
+
   if diff -q "$file" "$temp_file" >/dev/null 2>&1; then
     rm -f "$temp_file"
     return 1
   fi
-  
+
   rm -f "$temp_file"
   return 0
 }
 
 handle_reinstall() {
   local config_dir="$1"
-  
+
   if [ -d "$config_dir" ]; then
     echo "Existing configuration detected at $config_dir"
     echo "Removing existing configuration for clean reinstall..."
@@ -270,9 +275,9 @@ main() {
     echo "  reinstall - Remove existing configuration and perform a clean reinstall"
     exit 1
   fi
-  
+
   OPERATION="$1"
-  
+
   case "$OPERATION" in
     install|update|reinstall)
       echo "Performing $OPERATION operation..."
@@ -328,7 +333,7 @@ main() {
       handle_reinstall "$CONFIG_DIR"
       ;;
   esac
-  
+
   if [ "$OPERATION" != "update" ]; then
     setup_config_dir
   fi

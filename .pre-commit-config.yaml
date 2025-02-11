@@ -13,8 +13,8 @@ repos:
       - id: no-commit-to-branch
         args: [--branch, main]
 
-  - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.10.0
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
     hooks:
       - id: shellcheck
         files: .*\.sh$
