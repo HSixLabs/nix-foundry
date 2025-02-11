@@ -63,9 +63,15 @@ jobs:
       uses: DeterminateSystems/magic-nix-cache-action@main
 
     - name: Test flake builds
+      env:
+        NIX_USER: runner
+        HOST: ${{ matrix.os }}
       run: |
-        export NIX_USER=$USER
-        export HOST=$(hostname)
+        echo "Debug: NIX_USER=$NIX_USER"
+        echo "Debug: USER=$USER"
+        echo "Debug: USERNAME=$USERNAME"
+        echo "Debug: LOGNAME=$LOGNAME"
+        echo "Debug: HOST=$HOST"
 
         mkdir -p ~/.config/nix
         echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
