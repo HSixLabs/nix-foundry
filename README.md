@@ -149,11 +149,13 @@ Edit `users.nix` to add new users or modify existing ones. The system will autom
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+We use conventional commits for automated semantic versioning. Please see our
+[Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- Commit message format
+- Development workflow
+- Testing requirements
+- Release process
 
 ## License
 
