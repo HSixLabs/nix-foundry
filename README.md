@@ -1,15 +1,57 @@
-# nix-configs
+# nix-foundry
 
-My Nix configuration system supporting Darwin (macOS), NixOS, and Windows (experimental) environments.
+A robust foundation for cross-platform development environments using Nix. Build consistent, reproducible development setups across Darwin, Linux, and Windows with enterprise-grade tooling and automation.
 
-## Features
+## Why nix-foundry?
 
-- 🚀 Multi-platform support (Darwin, NixOS, WSL, Windows)
-- 🏠 Home Manager integration
-- 🍺 Homebrew integration for macOS
-- 🔧 Automated development environment setup
-- 🐚 ZSH configuration with Powerlevel10k
-- 📦 Consistent package management across systems
+- 🏗️ **Production-Ready Foundation**: Pre-built infrastructure with cross-platform support
+- 🚀 **Zero-Config Setup**: Automatic platform & user detection with smart defaults
+- 🔄 **Enterprise Ready**: Multi-user support, quality gates, and CI/CD pipelines
+- 🛠️ **Flexible Architecture**: Modular design for easy customization
+- 📦 **Comprehensive Tooling**: Development, testing, and deployment tools included
+- 🔧 **Battle-Tested**: Used in production across various team sizes
+
+## Technical Foundation
+
+1. **Core Architecture**:
+   - Nix Flakes for reproducible builds
+   - Home Manager for user environments
+   - Platform-specific optimizations (Darwin/Linux/Windows)
+
+2. **Key Features**:
+   - Dynamic user detection and configuration
+   - Cross-platform shell setup (ZSH/PowerShell)
+   - Integrated development tools
+   - Automated testing and releases
+
+## Ready-Made Infrastructure
+
+nix-foundry provides a complete development infrastructure:
+
+1. **Cross-Platform Setup**:
+   - Automatic platform detection and configuration
+   - Pre-configured for Darwin, Linux, and Windows
+   - WSL2 support built-in
+
+2. **Development Environment**:
+   - Shell configurations (ZSH/PowerShell)
+   - Git setup with conventional commits
+   - VSCode with recommended extensions
+   - Direnv for project-specific environments
+
+3. **Quality Tools**:
+   - Pre-commit hooks for code quality
+   - Automated testing workflows
+   - Semantic versioning
+   - Changelog generation
+
+4. **Enterprise Features**:
+   - Multi-user support with dynamic detection
+   - Homebrew integration for macOS
+   - Modular architecture for team customization
+   - Local override support for individual preferences
+
+Skip the weeks of setup and start with a production-ready foundation.
 
 ## Supported Systems
 
@@ -26,29 +68,82 @@ My Nix configuration system supporting Darwin (macOS), NixOS, and Windows (exper
 - GitHub personal access token (set as `GITHUB_TOKEN` environment variable)
 - For macOS: Xcode Command Line Tools
 
-## Installation
+## Quick Start
 
-First, install Nix if you haven't already:
+1. **Install Nix**:
 
-```bash
-# macOS/Linux
-sh <(curl -L https://nixos.org/nix/install) --daemon
+   ```bash
+   sh <(curl -L https://nixos.org/nix/install) --daemon
+   ```
 
-# Windows (requires WSL2)
-sh <(curl -L https://nixos.org/nix/install) --no-daemon
+2. **Set Required Variables**:
+
+   ```bash
+   export GITHUB_TOKEN="your-token"    # Required for installation
+   export HOST="$(hostname)"           # Optional: custom hostname
+   ```
+
+3. **Bootstrap Environment**:
+
+   ```bash
+   curl -H "Authorization: token ${GITHUB_TOKEN}" \
+        -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | \
+        bash -s -- install
+   ```
+
+## Platform-Specific Setup
+
+### macOS
+
+- Homebrew packages install automatically
+- System preferences configured
+- iTerm2 settings applied on launch
+
+### Linux
+
+- System configuration applied automatically
+- Reboot may be required for kernel changes
+- WSL2 support included
+
+### Windows (experimental)
+
+- Requires WSL2 enabled
+- PowerShell configuration included
+- Some manual setup may be needed
+
+## System Architecture
+
+```shell
+.
+├── flake.nix         # Core configuration
+├── home/             # User environment
+│   ├── default.nix   # Base configuration
+│   ├── git.nix      # Git settings
+│   └── vscode.nix   # Editor config
+├── modules/          # System modules
+│   ├── darwin/      # macOS specific
+│   ├── nixos/       # Linux specific
+│   └── shared/      # Cross-platform
+└── lib/             # Helper functions
 ```
 
-Then install the configuration:
+Each component is designed for easy customization while maintaining stability.
 
-```bash
-# Fresh install
-curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- install
-```
+## For Teams
 
-Other operations:
+nix-foundry provides:
 
-- `update`: Updates existing installation
-- `reinstall`: Performs clean reinstall (warning: removes current config)
+1. **Standardized Environments**: Ensure all developers work with identical setups
+2. **Quality Gates**: Pre-configured commit hooks, linting, and formatting
+3. **CI/CD Pipeline**: Ready-to-use GitHub Actions workflows
+4. **Cross-Platform Support**: Works seamlessly across different operating systems
+
+## For Individuals
+
+1. **Quick Setup**: Bootstrap a professional development environment in minutes
+2. **Best Practices**: Industry-standard tools and workflows preconfigured
+3. **Future-Proof**: Easy to extend and customize as needs grow
+4. **Multiple Systems**: Use the same setup across all your machines
 
 ## Post-install Setup
 
@@ -108,25 +203,72 @@ Local customizations:
 
 Note: The configuration automatically detects your username and sets up accordingly - no need to modify `users.nix` unless you want to change the default behavior.
 
+## Framework Design
+
+nix-foundry is designed as a flexible framework that you can adapt to your needs:
+
+### Core Components
+
+1. **Platform Detection**: Automatic system detection and configuration
+2. **User Management**: Dynamic user detection and setup
+3. **Module System**: Pluggable architecture for easy customization
+
+### Customization Points
+
+1. **User Preferences**:
+   - Shell configuration (ZSH/PowerShell)
+   - Git settings
+   - VSCode preferences
+   - Local overrides via `~/.zshrc.local`
+
+2. **System Modules**:
+   - Add/remove packages in `modules/`
+   - Modify platform-specific settings
+   - Create custom modules
+
+3. **Development Tools**:
+   - Change linting rules
+   - Modify CI/CD workflows
+   - Adjust commit message standards
+
+The framework provides sensible defaults but is designed to be forked and customized to match your team's needs.
+
 ## Contributing
 
-While this is my personal configuration, I welcome contributions! You can:
+We welcome contributions! Please follow these guidelines:
 
-- 🔄 Fork it as a starting point for your own config
-- 🔍 Use it as a reference or template for your own config
-- 🐛 Report issues if you find them
-- 💡 Suggest improvements
-- 🤝 Submit PRs for bugs or enhancements
+### Commit Messages
 
-For consistency, please use conventional commits when contributing:
+Follow [Conventional Commits](https://www.conventionalcommits.org/) format:
 
-- `feat`: New features
-- `fix`: Bug fixes
-- `docs`: Documentation changes
-- `refactor`: Code changes that neither fix bugs nor add features
+```none
+<type>[optional scope][!]: <description>
 
-See [Contributing Guidelines](CONTRIBUTING.md) for more details.
+[optional body]
 
-## License
+[optional footer(s)]
+```
 
-MIT License - see the [LICENSE](LICENSE) file for details.
+Types:
+
+- `feat`: New feature (minor version)
+- `fix`: Bug fix (patch version)
+- `docs`: Documentation only
+- `style`: Code style changes
+- `refactor`: Code changes (no features/fixes)
+- `perf`: Performance improvements
+- `test`: Adding/fixing tests
+- `chore`: Maintenance tasks
+
+### Development Workflow
+
+1. Clone the repository
+2. Set up pre-commit hooks:
+
+```bash
+# Install pre-commit
+nix-shell -p pre-commit nixpkgs-fmt
+
+# Install the hooks
+pre-commit install -t pre-commit -t commit-msg
+```
