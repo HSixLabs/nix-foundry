@@ -17,7 +17,5 @@
         "labels": ["dependencies"]
       }
     ],
-    "template": "${{CHANGELOG}}\n\n## 📦 Installation\n\nUsing curl:\n```bash\ncurl -H \"Authorization: token ${GITHUB_TOKEN}\" -L https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- install\n```\n\nOr using wget:\n```bash\nwget -qO- --header=\"Authorization: token ${GITHUB_TOKEN}\" https://raw.githubusercontent.com/shawnkhoffman/nix-configs/main/install.sh | bash -s -- install\n```",
-    "pr_template": "- ${{TITLE}} (#${{NUMBER}})",
-    "empty_template": "- No changes"
+    "template": "${{CHANGELOG}}\n\n## 📦 Installation\n\nUsing curl:\n```bash\ncurl -H \"Authorization: token ${GITHUB_TOKEN}\" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- install\n```\n"
 }
