@@ -45,7 +45,7 @@ The CI pipeline automatically tests builds across supported platforms:
 
 - Ubuntu (ARM64 & x86_64)
 - macOS (Apple Silicon & Intel)
-- Windows (experimental, via WSL2)
+- Windows (via WSL2)
 
 Tests run on pull requests and main branch pushes. See [test.yml:64-104](.github/workflows/test.yml) for implementation details.
 

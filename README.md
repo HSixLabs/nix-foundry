@@ -1,6 +1,6 @@
 # nix-foundry
 
-A robust foundation for cross-platform development environments using Nix. Build consistent, reproducible development setups across Darwin, Linux, and Windows with enterprise-grade tooling and automation.
+A framework for building consistent, reproducible development environments across platforms. nix-foundry helps teams standardize their development setups using Nix, with enterprise-grade tooling and automation.
 
 ## Quick Start
 
@@ -21,18 +21,18 @@ A robust foundation for cross-platform development environments using Nix. Build
 
 ## Features
 
-- 🏗️ **Production-Ready**: Cross-platform support with automatic detection
-- 🚀 **Zero-Config**: Smart defaults with dynamic user detection
-- 🔄 **Enterprise-Grade**: Multi-user support, quality gates, CI/CD
-- 🛠️ **Development Tools**: Git, VSCode, Shell configurations included
-- 📦 **Quality Tools**: Pre-commit hooks, testing, semantic versioning
-- 🔧 **Customizable**: Modular design for team adaptation
+- 🏗️ **Cross-Platform**: Consistent environments across macOS, Linux, and Windows (WSL2)
+- 🚀 **Zero-Config**: Smart defaults with automatic platform detection
+- 🔄 **Enterprise-Ready**: Multi-user support, quality gates, CI/CD integration
+- 🛠️ **Development Tools**: Pre-configured Git, VSCode, Shell environments
+- 📦 **Quality Assurance**: Pre-commit hooks, testing, semantic versioning
+- 🔧 **Extensible**: Modular design for team customization
 
-## Supported Systems
+## Supported Platforms
 
 - macOS (Apple Silicon & Intel)
 - Linux (x86_64 & ARM)
-- Windows (experimental, via WSL2)
+- Windows (via WSL2)
 
 ## Customization
 

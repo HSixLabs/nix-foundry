@@ -97,13 +97,13 @@ Modular configuration architecture:
 ```shell
 .
 ├── docs/               # Documentation
-├── home/              # User-specific configurations
-├── lib/               # Shared Nix functions
+├── home/              # User environment configurations
+├── lib/               # Platform and utility functions
 ├── modules/           # System configurations
-│   ├── darwin/        # macOS-specific
-│   ├── nixos/         # Linux-specific
-│   └── shared/        # Cross-platform
-└── tests/             # Test suite
+│   ├── darwin/        # macOS-specific modules
+│   ├── nixos/         # Linux-specific modules
+│   └── shared/        # Cross-platform modules
+└── tests/             # Platform and integration tests
 ```
 
 ## Future Architecture

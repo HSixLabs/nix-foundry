@@ -1,10 +1,10 @@
-# Contributing to nix-configs
+# Contributing to nix-foundry
 
-Thanks for your interest in my Nix configuration! While this is my personal setup, I welcome contributions that might help others using it as a reference or template.
+Thanks for your interest in contributing to nix-foundry! This framework helps developers set up consistent, reproducible development environments across different platforms.
 
 ## Commit Message Guidelines
 
-I use [Conventional Commits](https://www.conventionalcommits.org/) for automated semantic versioning. Your commit messages should follow this format:
+We use [Conventional Commits](https://www.conventionalcommits.org/) for automated semantic versioning. Your commit messages should follow this format:
 
 ```none
 <type>[optional scope][!]: <description>
@@ -37,27 +37,27 @@ Examples:
 
 ```bash
 # Feature (minor version bump)
-feat: add support for NixOS
+feat: add vscode configuration module
 
 # Bug fix (patch version bump)
-fix: correct homebrew installation
+fix: correct direnv setup on WSL
 
 # Breaking change (major version bump)
-feat!: remove support for x86 windows
+feat!: update minimum Nix version requirement
 # or
-feat: remove support for x86 windows
+feat: update minimum Nix version requirement
 
-BREAKING CHANGE: x86 windows support has been removed
+BREAKING CHANGE: Requires Nix 2.4 or later
 ```
 
 ## Development Workflow
 
 1. Clone the repository
-2. Set up pre-commit hooks:
+2. Enter the development environment and set up hooks:
 
    ```bash
-   # Install pre-commit
-   nix-shell -p pre-commit nixpkgs-fmt
+   # Enter development environment
+   nix-shell
 
    # Install the hooks
    pre-commit install -t pre-commit -t commit-msg
@@ -80,11 +80,11 @@ BREAKING CHANGE: x86 windows support has been removed
 
    The pre-commit hooks will automatically:
    - Check for common issues (trailing whitespace, YAML format, etc.)
-   - Format Nix files
+   - Format Nix files using nixpkgs-fmt
    - Verify flake builds
    - Validate commit messages follow conventional commits format
 
-6. Commit your changes (commitizen will help format your message)
+6. Commit your changes
 7. Push your changes
 8. Create a Pull Request
 

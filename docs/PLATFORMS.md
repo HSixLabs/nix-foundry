@@ -122,6 +122,6 @@ The system will automatically:
 
    ```bash
    # Clear and rebuild
-   rm -rf ~/.config/nix-configs
+   rm -rf ~/.config/nix-foundry
    curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- reinstall
    ```
