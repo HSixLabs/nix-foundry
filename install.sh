@@ -308,13 +308,13 @@ main() {
 
   case "$PLATFORM" in
     *-darwin)
-      CONFIG_DIR="$HOME/.config/nix-configs"
+      CONFIG_DIR="$HOME/.config/nix-foundry"
       ;;
     *-linux*)
-      CONFIG_DIR="$HOME/.config/nix-configs"
+      CONFIG_DIR="$HOME/.config/nix-foundry"
       ;;
     x86_64-windows)
-      CONFIG_DIR="$APPDATA/nix-configs"
+      CONFIG_DIR="$APPDATA/nix-foundry"
       setup_windows
       ;;
     *)
