@@ -1,27 +1,62 @@
-# Nix build outputs
+# Binary
+/nix-foundry
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+.go/
+go.work
+
+# Development environment
+.env
+.envrc
+.direnv/
 result
 result-*
 
-# direnv
-.direnv/
-.envrc
-
-# Editor files
-.vscode/
+# Editor and IDE files
 .idea/
+.vscode/
 *.swp
+*.swo
 *~
 
-# macOS system files
+# macOS specific
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Nix specific
+.nix-shell/
+.nix-profile/
+
+# Testing and coverage
+coverage.txt
+coverage.html
+*.cover
+*.coverprofile
+
+# Project specific
+.config/
+backups/
+tmp/
+
+# Pre-commit
+.pre-commit-config.yaml.cache
+
+# Build artifacts
+dist/
+bin/
 
 # Logs
 *.log
 
 # Local environment files
-.env
 .env.local
 
 # Temporary files
@@ -31,9 +66,5 @@ result-*
 # Nix garbage collection roots
 /nix/var/nix/gcroots/
 
-# Build artifacts
-/build/
-/dist/
-
 # Home Manager generated files
-home-manager-generation* 
+home-manager-generation*

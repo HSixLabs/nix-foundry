@@ -1,127 +1,61 @@
-# Platform-Specific Setup
+# Platform Support
 
-nix-foundry provides optimized configurations for each supported platform.
+## Quick Reference
 
-## macOS (Darwin)
+| Platform | Status | Notes |
+|----------|---------|-------|
+| Linux    | Full    | All features supported |
+| macOS    | Full    | Intel & Apple Silicon |
+| Windows  | Beta    | WSL2 recommended |
 
-### macOS Prerequisites
+## Platform-Specific Setup
 
-- Xcode Command Line Tools
-- Rosetta 2 (for Apple Silicon)
+### Linux
+```bash
+# Install dependencies
+nix-foundry setup linux
 
-### macOS Features
+# Configure SELinux (if needed)
+nix-foundry setup linux --selinux
+```
 
-- Homebrew integration
-- System preferences configuration
-- iTerm2 settings
-- Font installation
+### macOS
+```bash
+# Install with Rosetta 2 support
+nix-foundry setup macos --rosetta
 
-### macOS Post-Install
+# Configure SIP exceptions
+nix-foundry setup macos --sip
+```
 
-The system will automatically:
+### Windows (WSL2)
+```bash
+# Setup WSL environment
+nix-foundry setup wsl
 
-- Configure SSL certificates
-- Install Homebrew packages
-- Apply system defaults
+# Enable Windows integration
+nix-foundry setup wsl --windows-tools
+```
 
-## Linux
+## Common Issues
 
-### Linux Prerequisites
+For platform-specific troubleshooting, see:
+- [Troubleshooting Guide](TROUBLESHOOTING.md#platform-specific-issues)
+- [FAQ](FAQ.md#platform-specific)
 
-- systemd-based distribution
-- curl or wget
+## Best Practices
 
-### Linux Features
+### Cross-Platform Development
+- Use platform-agnostic paths
+- Test on all platforms
+- Handle platform errors
 
-- Native package management
-- System-wide configurations
-- WSL2 support (when applicable)
+### Performance
+- Enable platform optimizations
+- Use native binaries
+- Cache aggressively
 
-### Linux Post-Install
-
-- System configuration applied automatically
-- Reboot may be required for kernel changes
-
-## Windows (Experimental)
-
-### Windows Prerequisites
-
-- Windows 10/11
-- WSL2 enabled
-- Windows Terminal (recommended)
-
-### Windows Features
-
-- PowerShell configuration
-- Windows Terminal settings
-- Cross-platform compatibility
-
-### Windows Known Limitations
-
-- Some features require manual setup
-- Performance may vary under WSL2
-
-## Troubleshooting
-
-### macOS Issues
-
-1. **SSL Certificate Problems**
-
-   ```bash
-   # Regenerate certificates
-   sudo rm /etc/ssl/certs/ca-certificates.crt
-   curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- reinstall
-   ```
-
-2. **Homebrew Integration Fails**
-
-   - Ensure Xcode CLI tools are installed: `xcode-select --install`
-   - Check Homebrew permissions: `sudo chown -R $(whoami) /opt/homebrew`
-
-### Linux Issues
-
-1. **Missing System Dependencies**
-
-   ```bash
-   # Ubuntu/Debian
-   sudo apt update && sudo apt install curl git
-
-   # Fedora
-   sudo dnf install curl git
-   ```
-
-2. **Home Manager Conflicts**
-
-   - Backup and remove existing config: `mv ~/.config/home-manager ~/.config/home-manager.bak`
-   - Clear generation: `home-manager generations | head -1 | xargs home-manager remove-generations`
-
-### Windows/WSL2 Issues
-
-1. **WSL2 Installation**
-
-   ```powershell
-   # Run in PowerShell as Administrator
-   wsl --install
-   wsl --set-default-version 2
-   ```
-
-2. **Path Resolution Problems**
-   - Check Windows/WSL path integration: `wsl.exe --status`
-   - Ensure Windows Terminal uses correct shell: `"defaultProfile": "{WSL GUID}"`
-
-### General Fixes
-
-1. **Nix Store Corruption**
-
-   ```bash
-   nix-store --verify --check-contents
-   nix-store --repair
-   ```
-
-2. **Configuration Not Applied**
-
-   ```bash
-   # Clear and rebuild
-   rm -rf ~/.config/nix-foundry
-   curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- reinstall
-   ```
+Need help? See:
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [FAQ](FAQ.md)
+- [Security Guide](SECURITY.md)

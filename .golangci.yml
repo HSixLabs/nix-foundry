@@ -1,0 +1,72 @@
+linters:
+  disable-all: true
+  enable:
+    # Production-ready, widely used linters
+    - gofmt        # Standard Go formatter
+    - govet        # Official Go vet tool
+    - errcheck     # Error handling checker
+    - staticcheck  # Advanced static analysis
+    - gosimple     # Code simplification
+    - ineffassign  # Ineffective assignments
+    - unused       # Unused code
+    - typecheck    # Type checking
+    - bodyclose    # HTTP response body closer
+    - revive       # Drop-in replacement for golint
+
+linters-settings:
+  govet:
+    enable:
+      - shadow
+  revive:
+    rules:
+      - name: exported
+      - name: package-comments
+      - name: error-naming
+      - name: error-strings
+      - name: if-return
+      - name: var-naming
+      - name: var-declaration
+      - name: receiver-naming
+      - name: increment-decrement
+      - name: error-return
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+  go: '1.23'
+
+issues:
+  exclude:
+    - vendor/.*
+    - third_party/.*
+    - testdata/.*
+    - examples/.*
+    - Godeps/.*
+    - builtin/.*
+    - generated/.*
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+    - path: pkg/testutil/
+      linters:
+        - gosec
+        - errcheck
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  sort-results: true
+  print-issued-lines: true
+  print-linter-name: true

@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: check
+        run: |
+          commit_msg=$(git log -1 --pretty=%B)
+          if [[ "$commit_msg" =~ ^(feat|fix|docs|style|refactor|perf|test|chore|ci|revert)(\([a-zA-Z0-9-]+\))?!?: ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+  lint:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+      - uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --config=.golangci.yml
+      - run: make lint
+
+  test:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_run == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        go-version: ['1.21']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      - name: Run tests
+        run: |
+          make test
+          go test -v -coverprofile=coverage.txt -covermode=atomic ./...
+      - uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          file: ./coverage.txt
+          flags: unittests
+          fail_ci_if_error: true
+
+  build:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_run == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-amd64
+          - os: macos-latest
+            platform: darwin-amd64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+      - run: make build
+      - name: Test binary
+        run: |
+          ./nf --version
+          ./nf doctor
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nf-${{ matrix.platform }}
+          path: nf
+          if-no-files-found: error
+
+  pre-commit:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install pre-commit
+      - run: make pre-commit
+
+  release:
+    needs: [lint, test, build, pre-commit]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - name: Prepare release
+        run: |
+          mkdir -p dist
+          cp nf-linux-amd64/nf dist/nf-linux-amd64
+          cp nf-darwin-amd64/nf dist/nf-darwin-amd64
+          chmod +x dist/*
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/nf-linux-amd64
+            dist/nf-darwin-amd64
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Changes in this release
+            See [CHANGELOG.md](CHANGELOG.md) for details.
+
+            ## Installation
+            ```bash
+            # Download the binary for your platform
+            # Make it executable
+            chmod +x nf-*
+            # Move it to your PATH
+            sudo mv nf-* /usr/local/bin/nf
+            ```
