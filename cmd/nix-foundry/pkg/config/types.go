@@ -1,5 +1,41 @@
 package config
 
+// ConfigType represents the type of configuration
+type Type string
+
+const (
+	PersonalConfigType Type = "personal"
+	ProjectConfigType  Type = "project"
+	TeamConfigType     Type = "team"
+)
+
+// BaseConfig provides common configuration fields
+type BaseConfig struct {
+	Type    Type   `yaml:"type"`
+	Version string `yaml:"version"`
+	Name    string `yaml:"name,omitempty"`
+}
+
+// ProjectConfig represents project-specific configuration
+type ProjectConfig struct {
+	BaseConfig `yaml:",inline"`
+	Required   []string `yaml:"required,omitempty"`
+	Tools      struct {
+		Go     []string `yaml:"go,omitempty"`
+		Node   []string `yaml:"node,omitempty"`
+		Python []string `yaml:"python,omitempty"`
+	} `yaml:"tools,omitempty"`
+	Environment map[string]string `yaml:"environment,omitempty"`
+}
+
+// ConfigPaths stores standard configuration paths
+type Paths struct {
+	Personal string
+	Project  string
+	Team     string
+	Current  string
+}
+
 type EditorConfig struct {
 	Type       string                 `yaml:"type"`
 	Extensions []string               `yaml:"extensions,omitempty"`
@@ -18,26 +54,6 @@ type GitConfig struct {
 type ShellConfig struct {
 	Type    string   `yaml:"type"`
 	Plugins []string `yaml:"plugins,omitempty"`
-}
-
-type UserConfig struct {
-	Extends  string         `yaml:"extends,omitempty"`
-	Shell    string         `yaml:"shell"`
-	Editors  []EditorConfig `yaml:"editors,omitempty"`
-	Packages []string       `yaml:"packages,omitempty"`
-	Git      GitConfig      `yaml:"git"`
-}
-
-// NixConfig represents the internal configuration structure
-type NixConfig struct {
-	Version     string            `yaml:"version"`
-	Shell       ShellConfig       `yaml:"shell"`
-	Editor      EditorConfig      `yaml:"editor"`
-	Git         GitConfig         `yaml:"git"`
-	Packages    PackagesConfig    `yaml:"packages"`
-	Team        TeamConfig        `yaml:"team"`
-	Platform    PlatformConfig    `yaml:"platform"`
-	Development DevelopmentConfig `yaml:"development"`
 }
 
 type PackagesConfig struct {
@@ -63,14 +79,37 @@ type DevelopmentConfig struct {
 		Go struct {
 			Version  string   `yaml:"version,omitempty"`
 			Packages []string `yaml:"packages,omitempty"`
-		} `yaml:"go,omitempty"`
+		} `yaml:"go"`
 		Node struct {
-			Version  string   `yaml:"version,omitempty"`
+			Version  string   `yaml:"version"`
 			Packages []string `yaml:"packages,omitempty"`
-		} `yaml:"node,omitempty"`
+		} `yaml:"node"`
 		Python struct {
-			Version  string   `yaml:"version,omitempty"`
+			Version  string   `yaml:"version"`
 			Packages []string `yaml:"packages,omitempty"`
-		} `yaml:"python,omitempty"`
-	} `yaml:"languages,omitempty"`
+		} `yaml:"python"`
+	} `yaml:"languages"`
+	Tools []string `yaml:"tools,omitempty"`
+}
+
+// NixConfig represents the internal configuration structure
+type NixConfig struct {
+	Version     string            `yaml:"version"`
+	Shell       ShellConfig       `yaml:"shell"`
+	Editor      EditorConfig      `yaml:"editor"`
+	Git         GitConfig         `yaml:"git"`
+	Packages    PackagesConfig    `yaml:"packages"`
+	Team        TeamConfig        `yaml:"team"`
+	Platform    PlatformConfig    `yaml:"platform"`
+	Development DevelopmentConfig `yaml:"development"`
+}
+
+// UserConfig represents a user's base configuration that can be extended
+type UserConfig struct {
+	Shell    string                 `yaml:"shell"`
+	Editors  []EditorConfig         `yaml:"editors"`
+	Packages []string               `yaml:"packages"`
+	Git      GitConfig              `yaml:"git"`
+	Extends  string                 `yaml:"extends,omitempty"`
+	Settings map[string]interface{} `yaml:"settings,omitempty"`
 }

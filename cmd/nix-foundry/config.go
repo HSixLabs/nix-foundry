@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,12 +11,14 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+
+	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/config"
 )
 
 var (
 	validShells  = []string{"zsh", "bash", "fish"}
 	validEditors = []string{"nano", "vim", "nvim", "emacs", "neovim", "vscode"}
+	configManager *config.Manager
 )
 
 var configCmd = &cobra.Command{
@@ -42,70 +43,20 @@ var configValidateCmd = &cobra.Command{
 	Short: "Validate configuration",
 	Long:  `Validate the current configuration for syntax and semantic correctness.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := checkPrerequisites(); err != nil {
-			return fmt.Errorf("prerequisites check failed: %w", err)
-		}
-
-		if err := setupEnvironmentIsolation(); err != nil {
-			return fmt.Errorf("environment isolation setup failed: %w", err)
-		}
-
-		configDir := getConfigDir()
-		configPath := filepath.Join(configDir, "config.yaml")
-
-		// Check if config exists
-		if _, err := os.Stat(configPath); err != nil {
-			return fmt.Errorf("configuration not found at %s", configPath)
-		}
-
-		// Read config
-		data, err := os.ReadFile(configPath)
+		var err error
+		configManager, err = config.NewConfigManager()
 		if err != nil {
-			return fmt.Errorf("failed to read configuration: %w", err)
+			return err
 		}
 
-		// Validate structure
-		var config PersonalConfig
-		if err := yaml.Unmarshal(data, &config); err != nil {
-			return fmt.Errorf("invalid configuration format: %w", err)
+		var nixConfig config.NixConfig
+		if err := configManager.ReadConfig("config.yaml", &nixConfig); err != nil {
+			return err
 		}
 
-		// Validate version
-		if config.Version == "" {
-			return fmt.Errorf("missing version in configuration")
-		}
-
-		// Validate shell
-		if config.Shell.Type != "" && !contains(validShells, config.Shell.Type) {
-			return fmt.Errorf("invalid shell type: %s", config.Shell.Type)
-		}
-
-		// Validate editor
-		if config.Editor.Type != "" && !contains(validEditors, config.Editor.Type) {
-			return fmt.Errorf("invalid editor type: %s", config.Editor.Type)
-		}
-
-		// Validate development tools if specified
-		if config.Development.Languages.Go.Version != "" {
-			if !isValidVersion(config.Development.Languages.Go.Version) {
-				return fmt.Errorf("invalid Go version: %s", config.Development.Languages.Go.Version)
-			}
-		}
-		if config.Development.Languages.Node.Version != "" {
-			if !isValidVersion(config.Development.Languages.Node.Version) {
-				return fmt.Errorf("invalid Node version: %s", config.Development.Languages.Node.Version)
-			}
-		}
-
-		// Validate environment variables
-		for envName, env := range config.Environments {
-			for key, value := range env {
-				if key == "PATH" {
-					if !isValidPathFormat(value) {
-						return fmt.Errorf("invalid PATH format in environment %s", envName)
-					}
-				}
-			}
+		validator := config.NewValidator(&nixConfig)
+		if err := validator.ValidateConfig(); err != nil {
+			return fmt.Errorf("invalid configuration: %w", err)
 		}
 
 		fmt.Println("Configuration validation successful")
@@ -127,7 +78,18 @@ var configApplyCmd = &cobra.Command{
 	Short: "Apply configuration changes",
 	Long:  `Apply changes from configuration files to the current environment.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return applyConfig()
+		var err error
+		configManager, err = config.NewConfigManager()
+		if err != nil {
+			return err
+		}
+
+		var nixConfig config.NixConfig
+		if err := configManager.ReadConfig("config.yaml", &nixConfig); err != nil {
+			return err
+		}
+
+		return configManager.Apply(&nixConfig)
 	},
 }
 
@@ -184,259 +146,104 @@ func init() {
 	configInitCmd.Flags().BoolVar(&forceConfig, "force", false, "Force initialization even if config exists")
 }
 
-type PersonalConfig struct {
-	Version string `yaml:"version"`
-	Shell   struct {
-		Type    string            `yaml:"type"`
-		Plugins []string          `yaml:"plugins,omitempty"`
-		Aliases map[string]string `yaml:"aliases,omitempty"`
-	} `yaml:"shell"`
-	Editor struct {
-		Type    string   `yaml:"type"`
-		Plugins []string `yaml:"plugins,omitempty"`
-	} `yaml:"editor"`
-	Git struct {
-		Enable bool `yaml:"enable"`
-	} `yaml:"git"`
-	Packages struct {
-		Additional       []string            `yaml:"additional"`
-		PlatformSpecific map[string][]string `yaml:"platformSpecific"`
-		Development      []string            `yaml:"development"`
-		Team             map[string]string   `yaml:"team"`
-	} `yaml:"packages"`
-	Team struct {
-		Enable   bool              `yaml:"enable"`
-		Name     string            `yaml:"name"`
-		Settings map[string]string `yaml:"settings"`
-	} `yaml:"team"`
-	Platform struct {
-		OS   string `yaml:"os"`
-		Arch string `yaml:"arch"`
-	} `yaml:"platform"`
-	Development struct {
-		Languages struct {
-			Go struct {
-				Version string   `yaml:"version"`
-				Modules []string `yaml:"modules,omitempty"`
-			} `yaml:"go"`
-			Node struct {
-				Version  string   `yaml:"version"`
-				Packages []string `yaml:"packages,omitempty"`
-			} `yaml:"node"`
-		} `yaml:"languages"`
-		Tools []string `yaml:"tools,omitempty"`
-	} `yaml:"development"`
-	Environments map[string]map[string]string `yaml:"environments,omitempty"`
-}
-
 func initConfig() error {
-	configDir := getConfigDir()
-	configPath := filepath.Join(configDir, "config.yaml")
-
-	if _, err := os.Stat(configPath); err == nil && !forceConfig {
-		return fmt.Errorf("configuration already exists at %s", configPath)
+	var err error
+	configManager, err = config.NewConfigManager()
+	if err != nil {
+		return err
 	}
 
-	config := PersonalConfig{
+	if configManager.ConfigExists("config.yaml") && !forceConfig {
+		return fmt.Errorf("configuration already exists at %s", filepath.Join(configManager.GetConfigDir(), "config.yaml"))
+	}
+
+	nixConfig := config.NixConfig{
 		Version: "1.0",
-		Shell: struct {
-			Type    string            `yaml:"type"`
-			Plugins []string          `yaml:"plugins,omitempty"`
-			Aliases map[string]string `yaml:"aliases,omitempty"`
-		}{
+		Shell: config.ShellConfig{
 			Type:    "zsh",
 			Plugins: []string{"zsh-autosuggestions"},
-			Aliases: make(map[string]string),
 		},
-		Editor: struct {
-			Type    string   `yaml:"type"`
-			Plugins []string `yaml:"plugins,omitempty"`
-		}{
-			Type:    "neovim",
-			Plugins: make([]string, 0),
+		Editor: config.EditorConfig{
+			Type:       "neovim",
+			Extensions: make([]string, 0),
 		},
-		Git: struct {
-			Enable bool `yaml:"enable"`
-		}{
+		Git: config.GitConfig{
 			Enable: true,
 		},
-		Packages: struct {
-			Additional       []string            `yaml:"additional"`
-			PlatformSpecific map[string][]string `yaml:"platformSpecific"`
-			Development      []string            `yaml:"development"`
-			Team             map[string]string   `yaml:"team"`
-		}{
+		Packages: config.PackagesConfig{
 			Additional: []string{"git", "ripgrep"},
 			PlatformSpecific: map[string][]string{
 				"darwin": {"mas"},
 				"linux":  {"inotify-tools"},
 			},
 			Development: []string{"git", "ripgrep", "fd", "jq"},
-			Team:        make(map[string]string),
+			Team:        make(map[string][]string),
 		},
-		Team: struct {
-			Enable   bool              `yaml:"enable"`
-			Name     string            `yaml:"name"`
-			Settings map[string]string `yaml:"settings"`
-		}{
+		Team: config.TeamConfig{
 			Enable:   false,
 			Name:     "",
 			Settings: make(map[string]string),
 		},
-		Platform: struct {
-			OS   string `yaml:"os"`
-			Arch string `yaml:"arch"`
-		}{
+		Platform: config.PlatformConfig{
 			OS:   runtime.GOOS,
 			Arch: runtime.GOARCH,
 		},
-		Development: struct {
-			Languages struct {
-				Go struct {
-					Version string   `yaml:"version"`
-					Modules []string `yaml:"modules,omitempty"`
-				} `yaml:"go"`
-				Node struct {
-					Version  string   `yaml:"version"`
-					Packages []string `yaml:"packages,omitempty"`
-				} `yaml:"node"`
-			} `yaml:"languages"`
-			Tools []string `yaml:"tools,omitempty"`
-		}{
+		Development: config.DevelopmentConfig{
 			Languages: struct {
 				Go struct {
-					Version string   `yaml:"version"`
-					Modules []string `yaml:"modules,omitempty"`
+					Version  string   `yaml:"version,omitempty"`
+					Packages []string `yaml:"packages,omitempty"`
 				} `yaml:"go"`
 				Node struct {
 					Version  string   `yaml:"version"`
 					Packages []string `yaml:"packages,omitempty"`
 				} `yaml:"node"`
-			}{
-				Go: struct {
-					Version string   `yaml:"version"`
-					Modules []string `yaml:"modules,omitempty"`
-				}{
-					Version: "",
-					Modules: make([]string, 0),
-				},
-				Node: struct {
+				Python struct {
 					Version  string   `yaml:"version"`
 					Packages []string `yaml:"packages,omitempty"`
-				}{
-					Version:  "",
-					Packages: make([]string, 0),
-				},
-			},
-			Tools: make([]string, 0),
+				} `yaml:"python"`
+			}{},
+			Tools: []string{},
 		},
-		Environments: make(map[string]map[string]string),
 	}
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	validator := config.NewValidator(&nixConfig)
+	if err := validator.ValidateConfig(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal configuration: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write configuration: %w", err)
+	if err := configManager.WriteConfig("config.yaml", nixConfig); err != nil {
+		return err
 	}
 
 	fmt.Println("Personal configuration initialized successfully")
 	return nil
 }
-
 func checkConfigConflicts() error {
-	configDir := getConfigDir()
-	personalConfig := filepath.Join(configDir, "config.yaml")
-	projectConfig := filepath.Join(configDir, "project.yaml")
+	_, err := config.NewConfigManager()
+	if err != nil {
+		return err
+	}
 
 	// If project config doesn't exist, no conflicts possible
-	if _, err := os.Stat(projectConfig); os.IsNotExist(err) {
+	if !configManager.ConfigExists("project.yaml") {
 		return nil
 	}
 
-	// Read both configs
-	personal := &PersonalConfig{}
-	project := &PersonalConfig{} // Using same struct as they share structure
-
-	personalData, err := os.ReadFile(personalConfig)
-	if err != nil {
+	var personal, project config.NixConfig
+	if err := configManager.ReadConfig("config.yaml", &personal); err != nil {
 		return fmt.Errorf("failed to read personal config: %w", err)
 	}
 
-	projectData, err := os.ReadFile(projectConfig)
-	if err != nil {
+	if err := configManager.ReadConfig("project.yaml", &project); err != nil {
 		return fmt.Errorf("failed to read project config: %w", err)
 	}
 
-	if err := yaml.Unmarshal(personalData, personal); err != nil {
-		return fmt.Errorf("invalid personal config: %w", err)
+	validator := config.NewValidator(&personal)
+	if err := validator.ValidateConflicts(&project); err != nil {
+		return fmt.Errorf("configuration conflicts found:\n%w", err)
 	}
 
-	if err := yaml.Unmarshal(projectData, project); err != nil {
-		return fmt.Errorf("invalid project config: %w", err)
-	}
-
-	// Check for conflicts
-	conflicts := []string{}
-
-	// Check shell conflicts
-	if personal.Shell.Type != project.Shell.Type {
-		conflicts = append(conflicts, fmt.Sprintf("shell type mismatch: personal=%s, project=%s",
-			personal.Shell.Type, project.Shell.Type))
-	}
-
-	// Check editor conflicts
-	if personal.Editor.Type != project.Editor.Type {
-		conflicts = append(conflicts, fmt.Sprintf("editor type mismatch: personal=%s, project=%s",
-			personal.Editor.Type, project.Editor.Type))
-	}
-
-	// Check environment variable conflicts
-	for env, value := range project.Environments {
-		if personalValue, exists := personal.Environments[env]; exists {
-			if !maps.Equal(value, personalValue) {
-				conflicts = append(conflicts, fmt.Sprintf("environment %s has conflicting values", env))
-			}
-		}
-	}
-
-	if len(conflicts) > 0 {
-		return fmt.Errorf("configuration conflicts found:\n- %s", strings.Join(conflicts, "\n- "))
-	}
-
-	return nil
-}
-
-func applyConfig() error {
-	configDir := getConfigDir()
-	currentEnv := filepath.Join(configDir, "environments", "current")
-
-	// Create backup before applying changes
-	if err := createBackup(); err != nil {
-		return fmt.Errorf("failed to create backup: %w", err)
-	}
-
-	// Check for conflicts unless forced
-	if !forceConfig {
-		if err := checkConfigConflicts(); err != nil {
-			return fmt.Errorf("configuration conflicts detected: %w\nUse --force to override", err)
-		}
-	}
-
-	// Apply configuration using home-manager
-	cmd := exec.Command("home-manager", "switch")
-	cmd.Dir = currentEnv
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to apply configuration: %w", err)
-	}
-
-	fmt.Println("✅ Configuration applied successfully")
 	return nil
 }
 
@@ -446,8 +253,13 @@ func initEnvironment() error {
 		return fmt.Errorf("prerequisite check failed: %w", err)
 	}
 
-	// Create directory structure
-	configDir := getConfigDir()
+	var err error
+	configManager, err = config.NewConfigManager()
+	if err != nil {
+		return err
+	}
+
+	configDir := configManager.GetConfigDir()
 	dirs := []string{
 		configDir,
 		filepath.Join(configDir, "environments"),
@@ -465,6 +277,7 @@ func initEnvironment() error {
 	// Create symlink to default environment as current
 	currentEnv := filepath.Join(configDir, "environments", "current")
 	defaultEnv := filepath.Join(configDir, "environments", "default")
+
 	// Remove existing symlink if it exists
 	if err := os.Remove(currentEnv); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove existing current environment link: %w", err)
@@ -474,8 +287,7 @@ func initEnvironment() error {
 	}
 
 	// Initialize default configuration if it doesn't exist
-	configPath := filepath.Join(configDir, "config.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if !configManager.ConfigExists("config.yaml") {
 		if err := initConfig(); err != nil {
 			return fmt.Errorf("failed to initialize configuration: %w", err)
 		}
@@ -599,13 +411,17 @@ func restoreBackup(backupPath string) error {
 }
 
 func importProjectConfig(path string) error {
-	// Create backup before import
-	if err := createBackup(); err != nil {
-		return fmt.Errorf("failed to create backup before import: %w", err)
+	var err error
+	configManager, err = config.NewConfigManager()
+	if err != nil {
+		return err
 	}
 
-	configDir := getConfigDir()
-	projectConfig := filepath.Join(configDir, "project.yaml")
+	// Create backup before import
+	err = configManager.CreateBackup()
+	if err != nil {
+		return fmt.Errorf("failed to create backup before import: %w", err)
+	}
 
 	// Check if path is a directory
 	fi, statErr := os.Stat(path)
@@ -615,7 +431,6 @@ func importProjectConfig(path string) error {
 
 	var configPath string
 	if fi.IsDir() {
-		// Look for config file in directory
 		configPath = filepath.Join(path, "nix-foundry.yaml")
 		if _, err := os.Stat(configPath); err != nil {
 			return fmt.Errorf("no nix-foundry.yaml found in directory %s", path)
@@ -624,16 +439,10 @@ func importProjectConfig(path string) error {
 		configPath = path
 	}
 
-	// Read and validate the config file
-	data, err := os.ReadFile(configPath)
+	// Load and validate the config
+	projectConfig, err := configManager.LoadConfig(config.ProjectConfigType, configPath)
 	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	// Parse and validate the config
-	config := &PersonalConfig{} // Using same struct as they share structure
-	if err := yaml.Unmarshal(data, config); err != nil {
-		return fmt.Errorf("invalid config file: %w", err)
+		return fmt.Errorf("failed to load config file: %w", err)
 	}
 
 	// Check for conflicts unless forced
@@ -643,19 +452,16 @@ func importProjectConfig(path string) error {
 		}
 	}
 
-	// Copy the config file
-	if err := os.WriteFile(projectConfig, data, 0644); err != nil {
+	if err := configManager.WriteConfig("project.yaml", projectConfig); err != nil {
 		return fmt.Errorf("failed to write project config: %w", err)
 	}
 
 	fmt.Println("✅ Project configuration imported successfully")
 
-	// If not forced, show a warning about applying changes
 	if !forceConfig {
 		fmt.Println("\nℹ️  Run 'nix-foundry config apply' to apply the changes")
 	} else {
-		// Apply changes immediately if forced
-		if err := applyConfig(); err != nil {
+		if err := configManager.Apply(projectConfig); err != nil {
 			return fmt.Errorf("failed to apply configuration: %w", err)
 		}
 	}
@@ -695,45 +501,4 @@ func createNamedBackup(name string) error {
 
 	fmt.Printf("✅ Created backup: %s\n", backupName)
 	return nil
-}
-
-func isValidPathFormat(path string) bool {
-	// PATH should be a colon-separated list of directories
-	parts := strings.Split(path, ":")
-	for _, part := range parts {
-		if part == "" {
-			continue // Empty parts are allowed in PATH
-		}
-		if _, err := os.Stat(part); err != nil {
-			// Path component doesn't exist or isn't accessible
-			return false
-		}
-	}
-	return true
-}
-
-func isValidVersion(version string) bool {
-	// Basic semver format: MAJOR.MINOR.PATCH
-	parts := strings.Split(version, ".")
-	if len(parts) < 2 || len(parts) > 3 {
-		return false
-	}
-
-	// Validate each part is a number
-	for _, part := range parts {
-		if _, err := strconv.Atoi(part); err != nil {
-			return false
-		}
-	}
-
-	return true
-}
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }

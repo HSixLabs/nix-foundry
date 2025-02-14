@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/config"
 	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/nix"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var doctorCmd = &cobra.Command{
@@ -38,9 +38,20 @@ func runDiagnostics() error {
 	}
 
 	// 2. Check configuration
-	if err := validateConfig(); err != nil {
+	configManager, err := config.NewConfigManager()
+	if err != nil {
+		return fmt.Errorf("failed to initialize config manager: %w", err)
+	}
+
+	var nixConfig config.NixConfig
+	if err := configManager.ReadConfig("config.yaml", &nixConfig); err != nil {
 		fmt.Printf("❌ Configuration: %v\n", err)
 		return err
+	}
+
+	validator := config.NewValidator(&nixConfig)
+	if err := validator.ValidateConfig(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
 	}
 	fmt.Println("✅ Configuration: OK")
 
@@ -198,44 +209,6 @@ func checkBackupPermissions(backupDir string) error {
 		if info.Mode().Perm()&0077 != 0 {
 			return fmt.Errorf("backup %s has unsafe permissions", entry.Name())
 		}
-	}
-
-	return nil
-}
-
-func validateConfig() error {
-	configDir := getConfigDir()
-	configPath := filepath.Join(configDir, "config.yaml")
-
-	// Check if config file exists
-	if _, err := os.Stat(configPath); err != nil {
-		return fmt.Errorf("configuration file not found: %w", err)
-	}
-
-	// Read and parse config
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to read configuration: %w", err)
-	}
-
-	var config PersonalConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("invalid configuration format: %w", err)
-	}
-
-	// Validate shell configuration
-	if !contains(validShells, config.Shell.Type) {
-		return fmt.Errorf("invalid shell type: %s", config.Shell.Type)
-	}
-
-	// Validate editor configuration
-	if !contains(validEditors, config.Editor.Type) {
-		return fmt.Errorf("invalid editor type: %s", config.Editor.Type)
-	}
-
-	// Validate version format
-	if !isValidVersion(config.Version) {
-		return fmt.Errorf("invalid version format: %s", config.Version)
 	}
 
 	return nil
