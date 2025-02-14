@@ -6,8 +6,12 @@ import (
 )
 
 var (
-	ValidShells  = []string{"zsh", "bash", "fish"}
-	ValidEditors = []string{"nano", "vim", "nvim", "emacs", "neovim", "vscode"}
+	ValidShells     = []string{"zsh", "bash", "fish"}
+	ValidAutoShells = []string{"zsh", "bash"}
+	ValidEditors    = []string{"nano", "vim", "nvim", "emacs", "neovim", "vscode", "code"}
+	editorAliases   = map[string]string{
+		"code": "vscode",
+	}
 )
 
 type Validator struct {
@@ -25,13 +29,13 @@ func (v *Validator) ValidateConfig() error {
 
 	if v.config.Shell.Type == "" {
 		return fmt.Errorf("shell type is required")
-	} else if !contains(ValidShells, v.config.Shell.Type) {
+	} else if !Contains(ValidShells, v.config.Shell.Type) {
 		return fmt.Errorf("invalid shell type: %s", v.config.Shell.Type)
 	}
 
 	if v.config.Editor.Type == "" {
 		return fmt.Errorf("editor type is required")
-	} else if !contains(ValidEditors, v.config.Editor.Type) {
+	} else if !Contains(ValidEditors, v.config.Editor.Type) {
 		return fmt.Errorf("invalid editor type: %s", v.config.Editor.Type)
 	}
 
@@ -69,11 +73,39 @@ func (v *Validator) ValidateConflicts(other *NixConfig) error {
 	return nil
 }
 
-func contains(slice []string, item string) bool {
+func Contains(slice []string, item string) bool {
+	// Check for direct match first
 	for _, s := range slice {
 		if strings.EqualFold(s, item) {
 			return true
 		}
 	}
+
+	// Check aliases if no direct match found
+	if alias, exists := editorAliases[strings.ToLower(item)]; exists {
+		for _, s := range slice {
+			if strings.EqualFold(s, alias) {
+				return true
+			}
+		}
+	}
+
 	return false
+}
+
+func ValidateAutoShell(shell string) error {
+	if !Contains(ValidAutoShells, shell) {
+		return fmt.Errorf("invalid shell '%s': must be one of %v", shell, ValidAutoShells)
+	}
+	return nil
+}
+
+func ValidateEditor(editor string) error {
+	// Direct validation against ValidEditors only, no aliases
+	for _, validEditor := range ValidEditors {
+		if strings.EqualFold(editor, validEditor) {
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid editor '%s': must be one of %v", editor, ValidEditors)
 }

@@ -40,7 +40,7 @@ Note: Run this command after making changes to your configuration or after resto
 		// Apply configuration
 		spin := progress.NewSpinner("Applying configuration...")
 		spin.Start()
-		if err := config.Apply(configDir); err != nil {
+		if err := config.Apply(configDir, nil, testMode); err != nil {
 			spin.Fail("Failed to apply configuration")
 			return fmt.Errorf("failed to apply configuration: %w", err)
 		}

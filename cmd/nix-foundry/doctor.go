@@ -38,9 +38,12 @@ func runDiagnostics() error {
 	}
 
 	// 2. Check configuration
-	configManager, err := config.NewConfigManager()
-	if err != nil {
-		return fmt.Errorf("failed to initialize config manager: %w", err)
+	if configManager == nil {
+		var err error
+		configManager, err = config.NewConfigManager()
+		if err != nil {
+			return fmt.Errorf("failed to initialize config manager: %w", err)
+		}
 	}
 
 	var nixConfig config.NixConfig
@@ -51,7 +54,7 @@ func runDiagnostics() error {
 
 	validator := config.NewValidator(&nixConfig)
 	if err := validator.ValidateConfig(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 	fmt.Println("✅ Configuration: OK")
 

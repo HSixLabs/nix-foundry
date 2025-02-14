@@ -2,21 +2,32 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/testutil"
 	"github.com/spf13/cobra"
 )
 
+// Test-specific variables
+var (
+	testRootCmd   *cobra.Command
+	testConfigDir string
+	testHomeDir   string
+)
+
 func init() {
-	// Remove the global initialization of rootCmd and its subcommands
-	// Since we are now creating a new rootCmd instance in each test
+	// Initialize test mode flag only if not already set
+	if os.Getenv("NIX_FOUNDRY_TEST_MODE") == "" {
+		os.Setenv("NIX_FOUNDRY_TEST_MODE", "true")
+	}
 }
 
-func newRootCmd() *cobra.Command {
+func newTestRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "nix-foundry",
 		Short: "A tool for setting up development environments",
@@ -24,29 +35,48 @@ func newRootCmd() *cobra.Command {
 across different platforms using Nix, with smart defaults and easy customization.`,
 	}
 
+	// Initialize flags
+	var testMode bool
+	cmd.PersistentFlags().BoolVar(&testMode, "test-mode", false, "Run in test mode")
+
+	// Add all commands
+	cmd.AddCommand(initCmd)
+	cmd.AddCommand(configCmd)
+	cmd.AddCommand(updateCmd)
+	cmd.AddCommand(applyCmd)
+	cmd.AddCommand(backupCmd)
+	cmd.AddCommand(doctorCmd)
+	cmd.AddCommand(backupRestoreCmd)
+
 	// Initialize packages command hierarchy
 	packagesCmd := &cobra.Command{Use: "packages", Short: "Manage custom packages"}
 	packagesCmd.AddCommand(addPackageCmd)
 	packagesCmd.AddCommand(removePackageCmd)
 	packagesCmd.AddCommand(listPackagesCmd)
-
-	// Initialize backup command hierarchy
-	backupCmd.AddCommand(createCmd)
-	backupCmd.AddCommand(listCmd)
-	backupCmd.AddCommand(restoreCmd)
-	backupCmd.AddCommand(deleteCmd)
-
-	// Add all commands to root
 	cmd.AddCommand(packagesCmd)
-	cmd.AddCommand(backupCmd)
-	cmd.AddCommand(initCmd)
-	cmd.AddCommand(updateCmd)
-	cmd.AddCommand(doctorCmd)
+
+	// Set test mode for all commands
+	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		if testMode {
+			os.Setenv("NIX_FOUNDRY_TEST_MODE", "true")
+		}
+	}
 
 	return cmd
 }
 
 func TestPackageManagement(t *testing.T) {
+	// Setup test-specific root command
+	testRootCmd = newTestRootCmd()
+	testRootCmd.SetOut(io.Discard)
+	testRootCmd.SetErr(io.Discard)
+	t.Cleanup(func() {
+		if testRootCmd != nil {
+			testRootCmd.ResetCommands()
+			testRootCmd = nil
+		}
+	})
+
 	homeDir, cleanup := testutil.SetupTestHome(t)
 	defer cleanup()
 
@@ -89,23 +119,16 @@ func TestPackageManagement(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Use a new instance of rootCmd for each test
-			rootCmd := newRootCmd()
-
-			// Suppress command output
-			rootCmd.SetOut(io.Discard)
-			rootCmd.SetErr(io.Discard)
-
 			// Add packages by setting args on rootCmd and executing it
 			for _, pkg := range tt.packages {
-				rootCmd.SetArgs([]string{"packages", "add", pkg})
+				testRootCmd.SetArgs([]string{"packages", "add", pkg})
 
-				if err := rootCmd.Execute(); err != nil {
+				if err := testRootCmd.Execute(); err != nil {
 					t.Fatalf("Failed to add package %s: %v", pkg, err)
 				}
 
-				// Reset rootCmd args after execution
-				rootCmd.SetArgs([]string{})
+				// Reset args after execution
+				testRootCmd.SetArgs([]string{})
 			}
 
 			// Verify packages were added
@@ -139,32 +162,56 @@ func TestPackageManagement(t *testing.T) {
 }
 
 func TestBackupRestore(t *testing.T) {
-	homeDir, cleanup := testutil.SetupTestHome(t)
-	defer cleanup()
+	// Create a test-specific temporary directory
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
 
-	// Create config directory structure
-	configDir := filepath.Join(homeDir, ".config", "nix-foundry")
+	// Setup test-specific root command
+	testRootCmd = newTestRootCmd()
+	testRootCmd.SetOut(io.Discard)
+	testRootCmd.SetErr(io.Discard)
+
+	// Create test configuration
+	testConfig := []byte("test configuration")
+	configDir := filepath.Join(tmpDir, ".config", "nix-foundry")
 	backupDir := filepath.Join(configDir, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		t.Fatalf("Failed to create backup directory: %v", err)
 	}
 
-	// Create test configuration
-	testConfig := []byte("test configuration")
-	if err := os.WriteFile(filepath.Join(configDir, "test.nix"), testConfig, 0644); err != nil {
+	testFile := filepath.Join(configDir, "test.nix")
+	if err := os.WriteFile(testFile, testConfig, 0644); err != nil {
 		t.Fatalf("Failed to write test configuration: %v", err)
 	}
 
-	// Use a new instance of rootCmd
-	rootCmd := newRootCmd()
+	// Mock tar command with a function that simulates the backup/restore
+	mockTar := testutil.MockCommand(t, "tar", `#!/bin/sh
+	case "$1" in
+		"-czf")
+			# Creating backup - copy the test file to the backup location
+			cp "`+testFile+`" "$2"
+			;;
+		"-xzf")
+			# Extracting backup - copy the backup file back to the test location
+			mkdir -p "$(dirname "`+testFile+`")"
+			cp "$2" "`+testFile+`"
+			;;
+	esac
+	exit 0`)
+	defer mockTar()
 
-	// Suppress command output
-	rootCmd.SetOut(io.Discard)
-	rootCmd.SetErr(io.Discard)
+	// Mock rsync command
+	mockRsync := testutil.MockCommand(t, "rsync", `#!/bin/sh
+	# Just pretend to sync files
+	exit 0`)
+	defer mockRsync()
 
-	// Execute backup command
-	rootCmd.SetArgs([]string{"backup"})
-	if err := rootCmd.Execute(); err != nil {
+	// Reset args before test
+	testRootCmd.SetArgs([]string{})
+
+	// Execute backup command with test mode
+	testRootCmd.SetArgs([]string{"backup", "create", "--test-mode"})
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("Failed to create backup: %v", err)
 	}
 
@@ -182,13 +229,15 @@ func TestBackupRestore(t *testing.T) {
 		t.Fatalf("Failed to remove test configuration: %v", err)
 	}
 
-	// Create a new rootCmd instance for restore
-	rootCmd = newRootCmd()
-	rootCmd.SetOut(io.Discard)
-	rootCmd.SetErr(io.Discard)
+	// Reset the root command for restore
+	testRootCmd.ResetCommands()
+	testRootCmd = newTestRootCmd()
+	testRootCmd.SetOut(io.Discard)
+	testRootCmd.SetErr(io.Discard)
+
 	// Execute restore command
-	rootCmd.SetArgs([]string{"restore", backupFiles[0]})
-	if err := rootCmd.Execute(); err != nil {
+	testRootCmd.SetArgs([]string{"restore", backupFiles[0], "--test-mode"})
+	if err := testRootCmd.Execute(); err != nil {
 		t.Fatalf("Failed to restore backup: %v", err)
 	}
 
@@ -201,4 +250,83 @@ func TestBackupRestore(t *testing.T) {
 	if string(restored) != string(testConfig) {
 		t.Errorf("Restored configuration doesn't match original")
 	}
+
+	// Ensure cleanup of test resources
+	t.Cleanup(func() {
+		if testRootCmd != nil {
+			testRootCmd.ResetCommands()
+			testRootCmd = nil
+		}
+		// Clean up test directory is handled by t.TempDir()
+	})
+}
+
+// TestMain handles test initialization and cleanup
+func TestMain(m *testing.M) {
+	// Store original state
+	origEnv := os.Getenv("NIX_FOUNDRY_TEST_MODE")
+	origHome := os.Getenv("HOME")
+	origRootCmd := testRootCmd
+
+	// Create base temporary directory for all tests
+	baseTestDir, err := os.MkdirTemp("", fmt.Sprintf("nix-foundry-test-%d-*", time.Now().UnixNano()))
+	if err != nil {
+		fmt.Printf("Failed to create base test directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Set up test directories
+	testHomeDir = filepath.Join(baseTestDir, "home")
+	testConfigDir = filepath.Join(testHomeDir, ".config", "nix-foundry-test")
+
+	// Create test home directory structure
+	if err := os.MkdirAll(testConfigDir, 0755); err != nil {
+		fmt.Printf("Failed to create test directories: %v\n", err)
+		os.RemoveAll(baseTestDir)
+		os.Exit(1)
+	}
+
+	// Set HOME environment variable to test home directory
+	os.Setenv("HOME", testHomeDir)
+
+	// Ensure cleanup runs even if tests panic
+	defer func() {
+		// Recover from panics
+		if r := recover(); r != nil {
+			fmt.Printf("Recovered from panic in TestMain: %v\n", r)
+		}
+
+		cleanupOrder := []func(){
+			func() {
+				if testRootCmd != nil {
+					testRootCmd.ResetCommands()
+					testRootCmd = nil
+				}
+			},
+			func() {
+				if err := os.RemoveAll(baseTestDir); err != nil {
+					fmt.Printf("Failed to cleanup test directories: %v\n", err)
+				}
+			},
+			func() {
+				if origEnv != "" {
+					os.Setenv("NIX_FOUNDRY_TEST_MODE", origEnv)
+				} else {
+					os.Unsetenv("NIX_FOUNDRY_TEST_MODE")
+				}
+				os.Setenv("HOME", origHome)
+				testRootCmd = origRootCmd
+			},
+		}
+
+		for _, cleanup := range cleanupOrder {
+			cleanup()
+		}
+	}()
+
+	// Run tests and capture the exit code
+	code := m.Run()
+
+	// Exit with the proper code after cleanup
+	os.Exit(code)
 }

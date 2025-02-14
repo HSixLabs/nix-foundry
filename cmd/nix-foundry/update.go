@@ -65,13 +65,13 @@ Note: Your existing configuration will be preserved during the update.`,
 		spin.Success("Packages updated")
 
 		// Apply updated configuration
-		spin = progress.NewSpinner("Applying updates...")
+		spin = progress.NewSpinner("Applying configuration...")
 		spin.Start()
-		if err := config.Apply(configDir); err != nil {
-			spin.Fail("Failed to apply updates")
-			return fmt.Errorf("failed to apply updates: %w\nYour previous configuration is unchanged", err)
+		if err := config.Apply(configDir, nil, testMode); err != nil {
+			spin.Fail("Failed to apply configuration")
+			return fmt.Errorf("failed to apply configuration: %w", err)
 		}
-		spin.Success("Updates applied")
+		spin.Success("Configuration applied")
 
 		fmt.Println("\n✨ Environment updated successfully!")
 		return nil

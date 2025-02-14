@@ -28,7 +28,14 @@ Examples:
   # Init with team config
   nix-foundry project init --team myteam`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return initProject()
+		var err error
+		if configManager == nil {
+			configManager, err = config.NewConfigManager()
+			if err != nil {
+				return fmt.Errorf("failed to initialize config manager: %w", err)
+			}
+		}
+		return initProject(configManager)
 	},
 }
 
@@ -49,19 +56,12 @@ func init() {
 	projectInitCmd.Flags().BoolVar(&forceProject, "force", false, "Force initialization even if project exists")
 }
 
-func initProject() error {
-	configManager, err := config.NewConfigManager()
-	if err != nil {
-		return err
-	}
-
-	// Create backup before initialization
-	if err := configManager.CreateBackup(); err != nil {
+func initProject(cm *config.Manager) error {
+	if err := cm.CreateBackup(); err != nil {
 		return fmt.Errorf("failed to create backup: %w", err)
 	}
 
-	// Initialize project environment
-	if err := initProjectEnv(configManager); err != nil {
+	if err := initProjectEnv(cm); err != nil {
 		return fmt.Errorf("failed to initialize project environment: %w", err)
 	}
 
@@ -105,9 +105,12 @@ func initProjectEnv(configManager *config.Manager) error {
 }
 
 func updateProjectConfig() error {
-	configManager, err := config.NewConfigManager()
-	if err != nil {
-		return err
+	if configManager == nil {
+		var initErr error
+		configManager, initErr = config.NewConfigManager()
+		if initErr != nil {
+			return fmt.Errorf("failed to initialize config manager: %w", initErr)
+		}
 	}
 
 	projectConfig, err := configManager.LoadProjectWithTeam("", teamName)

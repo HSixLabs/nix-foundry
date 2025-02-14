@@ -142,7 +142,80 @@ func (cm *Manager) loadTeamConfig(teamName string) (*ProjectConfig, error) {
 }
 
 // Apply applies the configuration after validation and backup
-func (cm *Manager) Apply(config interface{}) error {
+func (cm *Manager) Apply(config interface{}, testMode bool) error {
+	// Skip actual home-manager application in test mode
+	if testMode {
+		// Create a dummy backup in test mode
+		if err := cm.CreateBackup(); err != nil {
+			return fmt.Errorf("backup failed: %w", err)
+		}
+
+		// Create dummy configuration files
+		files := []string{
+			filepath.Join(cm.configDir, "flake.nix"),
+			filepath.Join(cm.configDir, "home.nix"),
+		}
+		for _, file := range files {
+			var content string
+			var err error
+
+			// Convert config to map[string]string if it's not already
+			configMap := make(map[string]string)
+			switch c := config.(type) {
+			case map[string]string:
+				configMap = c
+			case map[string]interface{}:
+				for k, v := range c {
+					if str, ok := v.(string); ok {
+						configMap[k] = str
+					}
+				}
+			}
+
+			switch filepath.Base(file) {
+			case "home.nix":
+				content, err = cm.GenerateTestConfig(config)
+			case "flake.nix":
+				content = fmt.Sprintf(`{
+					description = "Home Manager configuration";
+					inputs = {
+						nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+						home-manager = {
+							url = "github:nix-community/home-manager";
+							inputs.nixpkgs.follows = "nixpkgs";
+						};
+					};
+					outputs = { nixpkgs, home-manager, ... }: {
+						defaultPackage.x86_64-linux = home-manager.defaultPackage.x86_64-linux;
+						homeConfigurations = {
+							test = {
+								team = "%s";
+								package = pkgs.%s;
+							};
+						};
+					};
+				}`, configMap["team"], configMap["shell"])
+				err = nil
+			default:
+				err = fmt.Errorf("unknown file type: %s", file)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to generate config for %s: %w", file, err)
+			}
+
+			if err := os.WriteFile(file, []byte(content), 0644); err != nil {
+				return fmt.Errorf("failed to create test file %s: %w", file, err)
+			}
+		}
+		return nil
+	}
+
+	// Check if home-manager is installed
+	if _, err := exec.LookPath("home-manager"); err != nil {
+		return fmt.Errorf("home-manager not found: please install it first using 'nix-env -iA nixpkgs.home-manager'")
+	}
+
 	// First validate the configuration
 	if v, ok := config.(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
@@ -332,4 +405,96 @@ func (cm *Manager) LoadConfig(configType Type, name string) (interface{}, error)
 	}
 
 	return config, nil
+}
+
+// GenerateTestConfig generates a test configuration for testing purposes
+func (cm *Manager) GenerateTestConfig(config interface{}) (string, error) {
+	// Convert config to map[string]string if it's not already
+	configMap := make(map[string]string)
+	switch c := config.(type) {
+	case map[string]string:
+		configMap = c
+	case map[string]interface{}:
+		for k, v := range c {
+			if str, ok := v.(string); ok {
+				configMap[k] = str
+			}
+		}
+	case nil:
+		// Use defaults for nil config
+		configMap = map[string]string{
+			"shell":  "zsh",
+			"editor": "nano",
+		}
+	}
+
+	// Default shell if not specified
+	shell := "zsh"
+	if s, ok := configMap["shell"]; ok && s != "" {
+		shell = s
+	}
+
+	// Default editor if not specified
+	editor := "nano"
+	if e, ok := configMap["editor"]; ok && e != "" {
+		editor = e
+	}
+
+	// Default git configuration
+	gitName := configMap["git-name"]
+	gitEmail := configMap["git-email"]
+	gitEnabled := gitName != "" && gitEmail != ""
+
+	// Ensure the config directory exists
+	if err := os.MkdirAll(cm.configDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	return fmt.Sprintf(`{ config, pkgs, ... }:
+
+{
+  # Let Home Manager manage itself
+  programs.home-manager.enable = true;
+
+  home = {
+    username = builtins.getEnv "USER";
+    homeDirectory = builtins.getEnv "HOME";
+    stateVersion = "23.11";
+
+    # Package management
+    packages = with pkgs; [
+      %s    # Shell package
+    ];
+  };
+
+  # Shell configuration
+  programs.%s = {
+    enable = true;
+    package = pkgs.%s;
+  };
+
+  # Editor configuration
+  programs.%s = {
+    enable = true;
+  };
+
+  %s  # Git configuration (conditionally included)
+}`,
+		shell,
+		shell, shell,
+		editor,
+		generateGitConfig(gitEnabled, gitName, gitEmail)), nil
+}
+
+// Helper function to generate git configuration
+func generateGitConfig(enabled bool, name, email string) string {
+	if !enabled {
+		return "# Git configuration disabled"
+	}
+	return fmt.Sprintf(`# Git configuration
+  programs.git = {
+    enable = true;
+    userName = "%s";
+    userEmail = "%s";
+  };`, name, email)
 }

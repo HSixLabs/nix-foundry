@@ -11,6 +11,8 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/platform"
 	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/progress"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"gopkg.in/yaml.v3"
 )
 
 type (
@@ -26,19 +28,19 @@ type (
 )
 
 func (e PlatformError) Error() string {
-	return fmt.Sprintf("Platform setup failed: %v\nPlease ensure your system meets the requirements.", e.Err)
+	return fmt.Sprintf("platform setup failed: %v\nplease ensure your system meets the requirements", e.Err)
 }
 
 func (e NixError) Error() string {
-	return fmt.Sprintf("Nix setup failed: %v\nTry running 'curl -L https://nixos.org/nix/install | sh' manually.", e.Err)
+	return fmt.Sprintf("nix setup failed: %v\ntry running 'curl -L https://nixos.org/nix/install | sh' manually", e.Err)
 }
 
 func (e ConfigError) Error() string {
-	return fmt.Sprintf("Configuration failed: %v\nTry removing ~/.config/nix-foundry and running init again.", e.Err)
+	return fmt.Sprintf("configuration failed: %v\ntry removing ~/.config/nix-foundry and running init again", e.Err)
 }
 
 func setupNixFoundry(sys *platform.System, configDir string) error {
-	// Create config directory and required subdirectories
+	// Create config directory and required subdirectories first
 	dirs := []string{
 		configDir,
 		filepath.Join(configDir, "environments"),
@@ -50,6 +52,26 @@ func setupNixFoundry(sys *platform.System, configDir string) error {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
+	}
+
+	// Skip remaining setup in test mode
+	if testMode {
+		// Create dummy files that would normally be created by nix setup
+		files := []string{
+			filepath.Join(configDir, "flake.nix"),
+			filepath.Join(configDir, "home.nix"),
+		}
+		for _, file := range files {
+			if err := os.WriteFile(file, []byte("test configuration"), 0644); err != nil {
+				return fmt.Errorf("failed to create test file %s: %w", file, err)
+			}
+		}
+		return nil
+	}
+
+	// Check if Nix is installed
+	if _, err := exec.LookPath("nix-channel"); err != nil {
+		return fmt.Errorf("nix setup failed: %w\ntry running 'curl -L https://nixos.org/nix/install | sh' manually", err)
 	}
 
 	// Platform-specific setup
@@ -139,7 +161,7 @@ func previewConfiguration(nixCfg *config.NixConfig) {
 		tools = append(tools, fmt.Sprintf("Python %s", v))
 	}
 	if len(tools) > 0 {
-		fmt.Printf("🛠️  Tools:      %s\n", strings.Join(tools, ", "))
+		fmt.Printf("🔧  Tools:      %s\n", strings.Join(tools, ", "))
 	}
 
 	// Shell plugins (only if any are configured)
@@ -150,8 +172,22 @@ func previewConfiguration(nixCfg *config.NixConfig) {
 	fmt.Println()
 }
 
+func setupEnvironmentIsolation() error {
+	// Skip environment isolation setup in test mode
+	if testMode {
+		return nil
+	}
+
+	// Check if home-manager is installed
+	if _, err := exec.LookPath("home-manager"); err != nil {
+		return fmt.Errorf("home-manager not found: please install it first using 'nix-env -iA nixpkgs.home-manager'")
+	}
+
+	return nil
+}
+
 var initCmd = &cobra.Command{
-	Use:   "init [config.yaml]",
+	Use:   "init",
 	Short: "Initialize a new development environment",
 	Long: `Initialize a new development environment using a YAML configuration file.
 If no configuration file is provided and --auto is set, a default configuration will be generated.
@@ -170,7 +206,29 @@ Examples:
   nix-foundry init --auto --git-name "Your Name" --git-email "you@example.com"
 
 Configuration will be stored in ~/.config/nix-foundry/`,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		// Validate requirements before any execution
+		if len(args) == 0 && !autoConfig {
+			return fmt.Errorf("either --auto flag or config file path is required")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println("👋 Welcome to nix-foundry! Let's get you set up.")
+
+		// Rest of the validation and initialization logic...
+		if shell != "" {
+			if err := config.ValidateAutoShell(shell); err != nil {
+				return err
+			}
+		}
+
+		if editor != "" {
+			if err := config.ValidateEditor(editor); err != nil {
+				return err
+			}
+		}
+
 		home, homeErr := os.UserHomeDir()
 		if homeErr != nil {
 			return fmt.Errorf("failed to get home directory: %w", homeErr)
@@ -192,47 +250,126 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 		// Handle configuration
 		var yamlConfig []byte
 		var nixCfg *config.NixConfig
-		if len(args) > 0 {
-			configFile = args[0]
-			var err error
-			yamlConfig, err = os.ReadFile(configFile)
+
+		// If auto flag is set, generate default config
+		if autoConfig {
+			// Create temporary config for validation
+			tempConfig := &config.NixConfig{
+				Version: "1.0",
+				Shell: config.ShellConfig{
+					Type: shell,
+				},
+				Editor: config.EditorConfig{
+					Type: editor,
+				},
+			}
+			validator := config.NewValidator(tempConfig)
+			if err := validator.ValidateConfig(); err != nil {
+				return err
+			}
+
+			nixCfg = &config.NixConfig{
+				Version: "1.0",
+				Shell: config.ShellConfig{
+					Type:    shell,
+					Plugins: []string{"zsh-autosuggestions"},
+				},
+				Editor: config.EditorConfig{
+					Type:       editor,
+					Extensions: make([]string, 0),
+				},
+				Git: config.GitConfig{
+					Enable: true,
+					User: struct {
+						Name  string `yaml:"name"`
+						Email string `yaml:"email"`
+					}{
+						Name:  gitName,
+						Email: gitEmail,
+					},
+				},
+				Platform: config.PlatformConfig{
+					OS:   sys.OS,
+					Arch: sys.Arch,
+				},
+				Packages: config.PackagesConfig{
+					Additional: []string{"git", "ripgrep"},
+					PlatformSpecific: map[string][]string{
+						"darwin": {"mas"},
+						"linux":  {"inotify-tools"},
+					},
+					Development: []string{"git", "ripgrep", "fd", "jq"},
+					Team:        make(map[string][]string),
+				},
+				Team: config.TeamConfig{
+					Enable:   false,
+					Name:     teamName,
+					Settings: make(map[string]string),
+				},
+				Development: config.DevelopmentConfig{
+					Languages: struct {
+						Go struct {
+							Version  string   `yaml:"version,omitempty"`
+							Packages []string `yaml:"packages,omitempty"`
+						} `yaml:"go"`
+						Node struct {
+							Version  string   `yaml:"version"`
+							Packages []string `yaml:"packages,omitempty"`
+						} `yaml:"node"`
+						Python struct {
+							Version  string   `yaml:"version"`
+							Packages []string `yaml:"packages,omitempty"`
+						} `yaml:"python"`
+					}{},
+					Tools: []string{},
+				},
+			}
+		} else if len(args) > 0 {
+			// Loading from config file
+			configPath := args[0]
+			nixCfg = &config.NixConfig{}
+			cfg, err := configManager.LoadConfig(config.PersonalConfigType, configPath)
 			if err != nil {
-				return fmt.Errorf("failed to read config file: %w", err)
+				return fmt.Errorf("failed to load configuration: %w", err)
 			}
-			nixCfg, err = config.ConvertYAMLToNix(yamlConfig)
-			if err != nil {
-				return fmt.Errorf("failed to convert config: %w", err)
+
+			// Type assert the returned config
+			var ok bool
+			nixCfg, ok = cfg.(*config.NixConfig)
+			if !ok {
+				return fmt.Errorf("invalid configuration type returned")
 			}
-			nixCfg.Platform = config.PlatformConfig{
-				OS:   sys.OS,
-				Arch: sys.Arch,
+
+			// Use regular validator for config files
+			validator := config.NewValidator(nixCfg)
+			if err := validator.ValidateConfig(); err != nil {
+				return fmt.Errorf("invalid configuration: %w", err)
 			}
-		} else if autoConfig {
-			var err error
-			yamlConfig, err = config.GenerateDefaultConfig(*sys)
-			if err != nil {
-				return fmt.Errorf("failed to generate default config: %w", err)
-			}
-			nixCfg, err = config.ConvertYAMLToNix(yamlConfig)
-			if err != nil {
-				return fmt.Errorf("failed to convert config: %w", err)
-			}
+
+			// Move platform config update after validation
 			nixCfg.Platform = config.PlatformConfig{
 				OS:   sys.OS,
 				Arch: sys.Arch,
 			}
 		} else {
-			return fmt.Errorf("no configuration file provided. Use --auto to generate a default configuration")
+			return fmt.Errorf("either --auto flag or config file path is required")
 		}
 
 		// Create config directory for the config file
-		if err := os.MkdirAll(filepath.Dir(configFile), 0755); err != nil {
-			return fmt.Errorf("failed to create config directory: %w", err)
+		if mkdirErr := os.MkdirAll(filepath.Dir(configFile), 0755); mkdirErr != nil {
+			return fmt.Errorf("failed to create config directory: %w", mkdirErr)
+		}
+
+		var err error
+		// Marshal config to YAML
+		yamlConfig, err = yaml.Marshal(nixCfg)
+		if err != nil {
+			return fmt.Errorf("failed to marshal configuration: %w", err)
 		}
 
 		// Write the configuration file
-		if err := os.WriteFile(configFile, yamlConfig, 0644); err != nil {
-			return fmt.Errorf("failed to write configuration file: %w", err)
+		if writeErr := os.WriteFile(configFile, yamlConfig, 0644); writeErr != nil {
+			return fmt.Errorf("failed to write configuration file: %w", writeErr)
 		}
 
 		if configExists {
@@ -242,7 +379,6 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 			fmt.Println("2. Regenerate home-manager configuration")
 			fmt.Println("3. Update development environment")
 		} else {
-			fmt.Println("👋 Welcome to nix-foundry! Let's get you set up.")
 			fmt.Println("\nThe following will be configured:")
 			fmt.Printf("1. Create configuration in: %s\n", configDir)
 			fmt.Printf("2. Configure shell: %s\n", nixCfg.Shell.Type)
@@ -257,24 +393,26 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 
 		fmt.Println()
 
-		// Ask for confirmation
-		fmt.Print("Would you like to apply this configuration? [y/N]: ")
-		var response string
-		if _, err := fmt.Scanln(&response); err != nil {
-			return fmt.Errorf("failed to read user input: %w", err)
-		}
+		// Interactive confirmation (skip in test mode)
+		if !autoConfig && !testMode {
+			fmt.Print("\nWould you like to apply this configuration? [y/N]: ")
+			var confirm string
+			if _, scanErr := fmt.Scanln(&confirm); scanErr != nil {
+				return fmt.Errorf("failed to read user input: %w", scanErr)
+			}
 
-		if !strings.EqualFold(response, "y") && !strings.EqualFold(response, "yes") {
-			fmt.Println("Initialization cancelled.")
-			return nil
+			if !strings.EqualFold(confirm, "y") && !strings.EqualFold(confirm, "yes") {
+				fmt.Println("Initialization cancelled.")
+				return nil
+			}
 		}
 
 		// After user confirmation
 		spin := progress.NewSpinner("Setting up nix-foundry...")
 		spin.Start()
-		if err := setupNixFoundry(sys, configDir); err != nil {
+		if setupErr := setupNixFoundry(sys, configDir); setupErr != nil {
 			spin.Fail("Setup failed")
-			return err
+			return setupErr
 		}
 		spin.Success("Setup complete")
 
@@ -282,23 +420,53 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 		spin = progress.NewSpinner("Processing configuration...")
 		spin.Start()
 		defaultEnv := filepath.Join(configDir, "environments", "default")
-		if err := os.MkdirAll(defaultEnv, 0755); err != nil {
+		if mkdirErr := os.MkdirAll(defaultEnv, 0755); mkdirErr != nil {
 			spin.Fail("Failed to create default environment")
-			return fmt.Errorf("failed to create default environment: %w", err)
+			return fmt.Errorf("failed to create default environment: %w", mkdirErr)
 		}
 		// Generate files directly in the default environment
-		if err := config.Generate(defaultEnv, nixCfg); err != nil {
+		if genErr := config.Generate(defaultEnv, nixCfg); genErr != nil {
 			spin.Fail("Configuration generation failed")
-			return fmt.Errorf("failed to generate Nix configuration: %w", err)
+			return fmt.Errorf("failed to generate Nix configuration: %w", genErr)
 		}
 		spin.Success("Configuration processed")
 
-		// Apply configuration (this will create flake.lock)
+		// Convert flags to configuration map
+		configMap := make(map[string]string)
+		cmd.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Name != "test-mode" && f.Name != "auto" { // Skip non-config flags
+				if f.Value.String() != "" {
+					configMap[f.Name] = f.Value.String()
+				}
+			}
+		})
+
+		// Apply configuration
 		spin = progress.NewSpinner("Applying configuration...")
 		spin.Start()
-		if err := config.Apply(configDir); err != nil {
-			spin.Fail("Configuration application failed")
-			return fmt.Errorf("failed to apply configuration: %w", err)
+		// Initialize config manager if not already initialized
+		if configManager == nil {
+			var initErr error
+			configManager, initErr = config.NewConfigManager()
+			if initErr != nil {
+				return fmt.Errorf("failed to initialize config manager: %w", initErr)
+			}
+		}
+
+		// Get config file path
+		configFile = filepath.Join(configManager.GetConfigDir(), "config.yaml")
+		if configManager.ConfigExists("config.yaml") && !forceConfig {
+			return fmt.Errorf("configuration already exists at %s", configFile)
+		}
+
+		// Create config directory for the config file
+		if mkdirErr := os.MkdirAll(filepath.Dir(configFile), 0755); mkdirErr != nil {
+			return fmt.Errorf("failed to create config directory: %w", mkdirErr)
+		}
+
+		if applyErr := configManager.Apply(configMap, testMode); applyErr != nil {
+			spin.Fail("Failed to apply configuration")
+			return fmt.Errorf("failed to apply configuration: %w", applyErr)
 		}
 		spin.Success("Configuration applied successfully")
 
@@ -307,21 +475,21 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 		spin.Start()
 
 		// Create symlink to default environment
-		currentEnv := filepath.Join(configDir, "environments", config.CurrentEnv)
-		defaultEnv = filepath.Join(configDir, "environments", config.DefaultEnv)
+		currentEnv := filepath.Join(configDir, "environments", "current")
+		defaultEnv = filepath.Join(configDir, "environments", "default")
 
 		// Remove existing symlink if it exists
-		if _, err := os.Lstat(currentEnv); err == nil {
-			if err := os.Remove(currentEnv); err != nil {
+		if _, lstatErr := os.Lstat(currentEnv); lstatErr == nil {
+			if removeErr := os.Remove(currentEnv); removeErr != nil {
 				spin.Fail("Failed to update environment link")
-				return fmt.Errorf("failed to remove existing environment link: %w", err)
+				return fmt.Errorf("failed to remove existing environment link: %w", removeErr)
 			}
 		}
 
 		// Create new symlink
-		if err := os.Symlink(defaultEnv, currentEnv); err != nil {
+		if symlinkErr := os.Symlink(defaultEnv, currentEnv); symlinkErr != nil {
 			spin.Fail("Failed to set up environment")
-			return fmt.Errorf("failed to create environment link: %w", err)
+			return fmt.Errorf("failed to create environment link: %w", symlinkErr)
 		}
 		spin.Success("Environment ready")
 
@@ -329,9 +497,9 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 		spin = progress.NewSpinner("Installing nix-foundry...")
 		spin.Start()
 		binDir := filepath.Join(os.Getenv("HOME"), ".local", "bin")
-		if err := os.MkdirAll(binDir, 0755); err != nil {
+		if mkdirErr := os.MkdirAll(binDir, 0755); mkdirErr != nil {
 			spin.Fail("Failed to create bin directory")
-			return fmt.Errorf("failed to create bin directory: %w", err)
+			return fmt.Errorf("failed to create bin directory: %w", mkdirErr)
 		}
 
 		executable, err := os.Executable()
@@ -354,12 +522,13 @@ Configuration will be stored in ~/.config/nix-foundry/`,
 }
 
 func init() {
-	initCmd.Flags().StringVar(&shell, "shell", "zsh", fmt.Sprintf("Shell to configure %v", validShells))
-	initCmd.Flags().StringVar(&editor, "editor", "nano", fmt.Sprintf("Text editor %v", validEditors))
+	initCmd.Flags().StringVar(&shell, "shell", "zsh", "Shell to configure [zsh bash]")
+	initCmd.Flags().StringVar(&editor, "editor", "nano", "Text editor [nano vim nvim emacs neovim vscode]")
 	initCmd.Flags().StringVar(&gitName, "git-name", "", "Git user name")
 	initCmd.Flags().StringVar(&gitEmail, "git-email", "", "Git user email")
-	initCmd.Flags().StringVar(&teamName, "team", "", "Team configuration to use")
 	initCmd.Flags().BoolVar(&autoConfig, "auto", false, "Generate minimal configuration if none exists")
 	initCmd.Flags().BoolVar(&projectInit, "project", false, "Initialize a project environment")
-	initCmd.Flags().BoolVar(&forceInit, "force", false, "Force initialization even if configuration exists")
+	initCmd.Flags().StringVar(&teamName, "team", "", "Team configuration to use")
+	initCmd.Flags().BoolVar(&forceConfig, "force", false, "Force initialization even if configuration exists")
+	initCmd.Flags().BoolVar(&testMode, "test-mode", false, "Run in test mode")
 }

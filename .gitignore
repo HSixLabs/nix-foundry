@@ -1,5 +1,7 @@
 # Binary
 /nix-foundry
+/nixf
+/nf
 
 # Go specific
 *.exe

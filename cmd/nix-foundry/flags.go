@@ -33,7 +33,6 @@ var (
 	gitEmail    string
 	autoConfig  bool
 	projectInit bool
-	forceInit   bool
 
 	// Project flags
 	forceProject bool
@@ -43,4 +42,7 @@ var (
 
 	// Shared flags
 	teamName string
+
+	// Test flags
+	testMode bool
 )
