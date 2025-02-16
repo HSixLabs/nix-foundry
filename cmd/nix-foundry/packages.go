@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/config"
-	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/pkg/progress"
+	"github.com/shawnkhoffman/nix-foundry/internal/services"
+	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +18,12 @@ var listPackagesCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List custom packages",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		packages, err := config.LoadCustomPackages()
+		pkgSvc, err := services.NewPackageService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize package service: %w", err)
+		}
+
+		packages, err := pkgSvc.ListCustomPackages()
 		if err != nil {
 			return fmt.Errorf("failed to load custom packages: %w", err)
 		}
@@ -44,28 +49,15 @@ var addPackageCmd = &cobra.Command{
 			return fmt.Errorf("please specify at least one package to add")
 		}
 
+		pkgSvc, err := services.NewPackageService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize package service: %w", err)
+		}
+
 		spin := progress.NewSpinner("Adding packages...")
 		spin.Start()
 
-		// Load existing packages
-		existing, _ := config.LoadCustomPackages()
-		packages := make(map[string]bool)
-		for _, pkg := range existing {
-			packages[pkg] = true
-		}
-
-		// Add new packages
-		for _, pkg := range args {
-			packages[pkg] = true
-		}
-
-		// Convert back to slice
-		var packageList []string
-		for pkg := range packages {
-			packageList = append(packageList, pkg)
-		}
-
-		if err := config.SaveCustomPackages(packageList); err != nil {
+		if err := pkgSvc.AddPackages(args); err != nil {
 			spin.Fail("Failed to add packages")
 			return err
 		}
@@ -84,30 +76,15 @@ var removePackageCmd = &cobra.Command{
 			return fmt.Errorf("please specify at least one package to remove")
 		}
 
+		pkgSvc, err := services.NewPackageService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize package service: %w", err)
+		}
+
 		spin := progress.NewSpinner("Removing packages...")
 		spin.Start()
 
-		// Load existing packages
-		existing, err := config.LoadCustomPackages()
-		if err != nil {
-			spin.Fail("Failed to load existing packages")
-			return err
-		}
-
-		// Remove specified packages
-		toRemove := make(map[string]bool)
-		for _, pkg := range args {
-			toRemove[pkg] = true
-		}
-
-		var remaining []string
-		for _, pkg := range existing {
-			if !toRemove[pkg] {
-				remaining = append(remaining, pkg)
-			}
-		}
-
-		if err := config.SaveCustomPackages(remaining); err != nil {
+		if err := pkgSvc.RemovePackages(args); err != nil {
 			spin.Fail("Failed to remove packages")
 			return err
 		}

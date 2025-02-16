@@ -1,21 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/cmd"
 )
 
 func main() {
+	rootCmd := cmd.NewRootCommand()
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-}
-
-func init() {
-	// Add commands to root command
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(configCmd)
-	rootCmd.AddCommand(projectCmd)
-	// ... other commands
 }

@@ -1,0 +1,67 @@
+nix-foundry/
+├── cmd/
+│   ├── nix-foundry/
+│   │   ├── main.go
+│   │   ├── root.go
+│   │   ├── commands/
+│   │   │   ├── environment/
+│   │   │   │   ├── rollback.go
+│   │   │   │   ├── rollback_test.go
+│   │   │   │   ├── switch.go
+│   │   │   │   ├── list.go
+│   │   │   │   └── root.go
+│   │   │   ├── backup/
+│   │   │   │   ├── backup.go
+│   │   │   │   ├── create.go
+│   │   │   │   └── root.go
+│   │   │   ├── config/
+│   │   │   │   ├── init.go
+│   │   │   │   ├── apply.go
+│   │   │   │   ├── packages.go
+│   │   │   │   └── root.go
+│   │   │   ├── profile/
+│   │   │   │   ├── create.go
+│   │   │   │   ├── list.go
+│   │   │   │   └── root.go
+│   │   │   └── status/
+│   │   │       ├── environment.go
+│   │   │       ├── system.go
+│   │   │       └── root.go
+│   │   ├── config.go
+│   │   ├── build.go
+│   │   └── other-command.go
+├── pkg/
+│   ├── config/
+│   │   ├── config.go
+│   │   ├── validation.go
+│   ├── nix/
+│   │   ├── nix.go
+│   ├── platform/
+│   │   ├── detect.go
+│   ├── progress/
+│   │   ├── progress.go
+├── internal/
+│   ├── helpers/
+│   │   ├── utils.go
+│   ├── services/
+│   │   ├── service.go
+├── docs/
+│   ├── README.md
+│   ├── CONFIG.md
+│   ├── CONTRIBUTING.md
+│   ├── BEST-PRACTICES.md
+├── test/
+│   ├── config_test.go
+│   ├── nix_test.go
+│   ├── integration_test.go
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yaml
+│   │   ├── release.yaml
+├── .golangci.yml
+├── .pre-commit-config.yaml
+├── commitlint.config.js
+├── go.mod
+├── go.sum
+├── LICENSE
+├── Makefile
