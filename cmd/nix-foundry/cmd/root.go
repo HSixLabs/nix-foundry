@@ -1,9 +1,8 @@
 package cmd
 
 import (
-	backupCmd "github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/commands/backup"
+	backupcmd "github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/commands/backup"
 	envcmd "github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/commands/environment"
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/validation"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/backup"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
@@ -15,13 +14,11 @@ import (
 
 func InitializeServices() (backup.Service, environment.Service) {
 	cfgManager := config.NewService()
-	validator := validation.NewService()
 	platformSvc := platform.NewService()
 
 	envSvc := environment.NewService(
 		cfgManager.GetConfigDir(),
 		cfgManager,
-		validator,
 		platformSvc,
 	)
 
@@ -37,13 +34,10 @@ func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "nix-foundry",
 		Short: "Nix environment management toolkit",
-		Run: func(cmd *cobra.Command, args []string) {
-			// Placeholder for the root command
-		},
 	}
 
 	rootCmd.AddCommand(
-		backupCmd.NewCmd(backupSvc),
+		backupcmd.NewCmd(backupSvc),
 		envcmd.NewCmd(envSvc),
 		// ... other command groups
 	)

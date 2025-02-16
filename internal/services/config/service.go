@@ -9,7 +9,19 @@ import (
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
+)
+
+// Define the Type enum and its constants
+type Type string
+
+const (
+	ProjectType Type = "project"
+	TeamType    Type = "team"
+	UserType    Type = "user"
+	SystemType  Type = "system"
 )
 
 // Service defines the interface for configuration operations
@@ -30,7 +42,7 @@ type Service interface {
 	Generate(defaultEnv string, nixCfg *NixConfig) error
 	CreateBackup(path string) error
 	RestoreBackup(path string) error
-	LoadConfig(configType ConfigType, name string) (interface{}, error)
+	LoadConfig(configType Type, name string) (interface{}, error)
 	WriteConfig(path string, cfg interface{}) error
 	MergeProjectConfigs(base, team ProjectConfig) ProjectConfig
 	LoadProjectWithTeam(projectName, teamName string) (*ProjectConfig, error)
@@ -146,11 +158,44 @@ func NewService() *ServiceImpl {
 
 func (s *ServiceImpl) Initialize(testMode bool) error {
 	if testMode {
-		// Test mode initialization logic
+		// In test mode, use temporary directories and minimal configuration
+		tempDir, err := os.MkdirTemp("", "nix-foundry-test-*")
+		if err != nil {
+			return fmt.Errorf("failed to create test directory: %w", err)
+		}
+		s.path = filepath.Join(tempDir, "config.yaml")
+		s.config = &Config{
+			Version: "1.0.0",
+			Settings: Settings{
+				LogLevel:   "debug",
+				AutoUpdate: false,
+			},
+		}
 	} else {
 		// Normal initialization
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+
+		configDir := filepath.Join(homeDir, ".config", "nix-foundry")
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			return fmt.Errorf("failed to create config directory: %w", err)
+		}
+
+		s.path = filepath.Join(configDir, "config.yaml")
+		if !s.ConfigExists() {
+			s.config = &Config{
+				Version: "1.0.0",
+				Settings: Settings{
+					LogLevel:   "info",
+					AutoUpdate: true,
+				},
+			}
+		}
 	}
-	return nil
+
+	return s.Save()
 }
 
 func (s *ServiceImpl) ApplyFlags(flags map[string]string, force bool) error {
@@ -477,17 +522,10 @@ func (s *ServiceImpl) SaveCustomPackages(packages []string) error {
 }
 
 // Add type definitions to config package
-type ConfigType string
-
-const (
-	ProjectConfigType ConfigType = "project"
-	TeamConfigType    ConfigType = "team"
-)
-
 type BaseConfig struct {
-	Type    ConfigType `yaml:"type"`
-	Version string     `yaml:"version"`
-	Name    string     `yaml:"name"`
+	Type    Type   `yaml:"type"`
+	Version string `yaml:"version"`
+	Name    string `yaml:"name"`
 }
 
 type ProjectConfig struct {
@@ -496,7 +534,7 @@ type ProjectConfig struct {
 	Settings Settings `yaml:"settings"`
 }
 
-func (s *ServiceImpl) LoadConfig(configType ConfigType, name string) (interface{}, error) {
+func (s *ServiceImpl) LoadConfig(configType Type, name string) (interface{}, error) {
 	var cfg interface{}
 	err := s.manager.LoadSection(string(configType)+"-"+name, &cfg)
 	return cfg, err
@@ -523,10 +561,19 @@ func (s *ServiceImpl) MergeProjectConfigs(base, team ProjectConfig) ProjectConfi
 }
 
 // Add missing LoadConfig to Manager
-func (m *Manager) LoadConfig(configType ConfigType, name string) (interface{}, error) {
-	var cfg interface{}
-	err := m.LoadSection(string(configType)+"-"+name, &cfg)
-	return cfg, err
+func (m *Manager) LoadConfig(configType Type, name string) (interface{}, error) {
+	switch configType {
+	case ProjectType:
+		return m.loadProjectConfig(name)
+	case TeamType:
+		return m.loadTeamConfig(name)
+	case UserType:
+		return m.loadUserConfig(name)
+	case SystemType:
+		return m.loadSystemConfig(name)
+	default:
+		return nil, fmt.Errorf("unsupported config type: %s", configType)
+	}
 }
 
 // Add missing LoadProjectWithTeam to Manager
@@ -756,17 +803,74 @@ func (m *Manager) setIntValue(key string, value int) error {
 	return nil
 }
 
-// Update string handler to use the helper
+// Update string handler to use the proper title casing
 func (m *Manager) setStringValue(key string, value string) error {
 	path := strings.Split(key, ".")
 	if len(path) < 2 {
 		return fmt.Errorf("invalid key format, use dot notation: %s", key)
 	}
 
-	// Convert path elements to PascalCase for struct fields
+	// Use proper Unicode-aware title casing
+	titleCaser := cases.Title(language.Und)
 	for i := range path {
-		path[i] = strings.Title(path[i])
+		path[i] = titleCaser.String(path[i])
 	}
 
 	return setNestedValue(&m.cfg, path, value)
+}
+
+// Add the missing load methods to Manager
+func (m *Manager) loadProjectConfig(name string) (*ProjectConfig, error) {
+	path := filepath.Join(m.configPath, "projects", name+".yaml")
+	var config ProjectConfig
+	if err := m.ReadConfig(path, &config); err != nil {
+		return nil, fmt.Errorf("failed to load project config: %w", err)
+	}
+	return &config, nil
+}
+
+func (m *Manager) loadTeamConfig(name string) (*TeamConfig, error) {
+	path := filepath.Join(m.configPath, "teams", name+".yaml")
+	var config TeamConfig
+	if err := m.ReadConfig(path, &config); err != nil {
+		return nil, fmt.Errorf("failed to load team config: %w", err)
+	}
+	return &config, nil
+}
+
+func (m *Manager) loadUserConfig(name string) (*UserConfig, error) {
+	path := filepath.Join(m.configPath, "users", name+".yaml")
+	var config UserConfig
+	if err := m.ReadConfig(path, &config); err != nil {
+		return nil, fmt.Errorf("failed to load user config: %w", err)
+	}
+	return &config, nil
+}
+
+func (m *Manager) loadSystemConfig(name string) (*SystemConfig, error) {
+	path := filepath.Join(m.configPath, "system", name+".yaml")
+	var config SystemConfig
+	if err := m.ReadConfig(path, &config); err != nil {
+		return nil, fmt.Errorf("failed to load system config: %w", err)
+	}
+	return &config, nil
+}
+
+// Add the missing config types if they don't exist
+type TeamConfig struct {
+	BaseConfig
+	Members  []string          `yaml:"members"`
+	Policies map[string]string `yaml:"policies"`
+}
+
+type UserConfig struct {
+	BaseConfig
+	Email       string                 `yaml:"email"`
+	Preferences map[string]interface{} `yaml:"preferences"`
+}
+
+type SystemConfig struct {
+	BaseConfig
+	Features map[string]bool        `yaml:"features"`
+	Defaults map[string]interface{} `yaml:"defaults"`
 }

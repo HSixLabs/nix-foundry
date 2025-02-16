@@ -3,7 +3,6 @@ package project
 import (
 	"fmt"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/validation"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/packages"
@@ -22,13 +21,11 @@ func NewProjectUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Initialize required services
 			cfgSvc := config.NewService()
-			validator := validation.NewService()
 			platformSvc := platform.NewService()
 
 			envSvc := environment.NewService(
 				cfgSvc.GetConfigDir(),
 				cfgSvc,
-				validator,
 				platformSvc,
 			)
 

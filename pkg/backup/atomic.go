@@ -2,10 +2,12 @@
 package backup
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
@@ -107,5 +109,45 @@ func AtomicSwap(oldPath, newPath string) error {
 }
 
 func VerifyChecksums(path string) error {
-	return nil // TODO: Implement actual checksum verification
+	checksumFile := path + ".sha256"
+
+	// Read checksum file
+	checksums, err := os.ReadFile(checksumFile)
+	if err != nil {
+		return fmt.Errorf("failed to read checksum file: %w", err)
+	}
+
+	// Verify each file
+	for _, line := range strings.Split(string(checksums), "\n") {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, "  ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		expectedHash := parts[0]
+		filePath := filepath.Join(path, parts[1])
+
+		// Calculate actual hash
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to open file %s: %w", filePath, err)
+		}
+		defer file.Close()
+
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, file); err != nil {
+			return fmt.Errorf("failed to calculate hash for %s: %w", filePath, err)
+		}
+
+		actualHash := fmt.Sprintf("%x", hasher.Sum(nil))
+		if actualHash != expectedHash {
+			return fmt.Errorf("checksum mismatch for %s", filePath)
+		}
+	}
+
+	return nil
 }

@@ -7,92 +7,82 @@ import (
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
-	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 )
 
+// Service defines the interface for update operations
 type Service interface {
-	UpdateFlake(configDir string) error
-	ApplyConfiguration(configDir string, testMode bool) error
+	UpdateFlake(dir string) error
+	ApplyConfiguration(dir string, dryRun bool) error
 }
 
+// ServiceImpl implements the update Service interface
 type ServiceImpl struct {
-	logger *logging.Logger
+	configService config.Service
+	envService    environment.Service
+	logger        *logging.Logger
 }
 
-func NewService() Service {
+// NewService creates a new update service instance
+func NewService(configService config.Service, envService environment.Service) Service {
 	return &ServiceImpl{
-		logger: logging.GetLogger(),
+		configService: configService,
+		envService:    envService,
+		logger:        logging.GetLogger(),
 	}
 }
 
-func (s *ServiceImpl) UpdateFlake(configDir string) error {
+// UpdateFlake updates the Nix flake in the specified directory
+func (s *ServiceImpl) UpdateFlake(dir string) error {
 	s.logger.Info("Updating Nix flake")
 
-	spin := progress.NewSpinner("Updating Nix packages...")
-	spin.Start()
-	defer spin.Stop()
-
-	// Check if configuration exists
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		spin.Fail("Failed to find configuration")
-		return errors.NewValidationError(configDir, err,
-			"no configuration found. Please run 'nix-foundry init' first")
+	// Verify flake.nix exists
+	flakePath := filepath.Join(dir, "flake.nix")
+	if _, err := os.Stat(flakePath); err != nil {
+		return errors.NewValidationError("update", err, "flake.nix not found")
 	}
 
-	// Convert the path to an absolute path
-	absPath, err := filepath.Abs(configDir)
-	if err != nil {
-		spin.Fail("Failed to resolve config path")
-		return errors.NewLoadError(configDir, err, "failed to resolve config path")
+	// Run nix flake update
+	cmd := exec.Command("nix", "flake", "update", dir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return errors.NewOperationError("update", err, map[string]interface{}{
+			"output": string(output),
+			"dir":    dir,
+		})
 	}
 
-	// Update flake
-	updateCmd := exec.Command("nix", "flake", "update", "--flake", absPath)
-	updateCmd.Stdout = os.Stdout
-	updateCmd.Stderr = os.Stderr
-	if err := updateCmd.Run(); err != nil {
-		spin.Fail("Failed to update packages")
-		return errors.NewLoadError(absPath, err, "failed to update flake")
-	}
-
-	spin.Success("Packages updated")
+	s.logger.Debug("Flake update completed successfully")
 	return nil
 }
 
-func (s *ServiceImpl) ApplyConfiguration(configDir string, testMode bool) error {
-	s.logger.Info("Applying updated configuration")
+// ApplyConfiguration applies the Nix configuration using home-manager
+func (s *ServiceImpl) ApplyConfiguration(dir string, dryRun bool) error {
+	s.logger.Info("Applying Nix configuration")
 
-	// Check if configuration exists
-	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		return errors.NewValidationError(configDir, err,
-			"no configuration found. Please run 'nix-foundry init' first")
+	// Verify flake.nix exists
+	flakePath := filepath.Join(dir, "flake.nix")
+	if _, err := os.Stat(flakePath); err != nil {
+		return errors.NewValidationError("update", err, "flake.nix not found")
 	}
 
-	spin := progress.NewSpinner("Applying configuration...")
-	spin.Start()
-	defer spin.Stop()
+	// Build command arguments
+	args := []string{"switch"}
+	if dryRun {
+		args = append(args, "--dry-run")
+	}
+	args = append(args, "--flake", dir)
 
-	// Convert the path to an absolute path
-	absPath, err := filepath.Abs(configDir)
-	if err != nil {
-		return errors.NewLoadError(configDir, err, "failed to resolve config path")
+	// Run home-manager switch
+	cmd := exec.Command("home-manager", args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return errors.NewOperationError("update", err, map[string]interface{}{
+			"output": string(output),
+			"dir":    dir,
+			"dryRun": dryRun,
+		})
 	}
 
-	// Apply configuration using home-manager
-	cmd := exec.Command("home-manager", "switch", "--flake", absPath)
-	if testMode {
-		s.logger.Debug("Skipping configuration apply in test mode")
-		return nil
-	}
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		spin.Fail("Failed to apply configuration")
-		return errors.NewLoadError(absPath, err, "failed to apply configuration")
-	}
-
-	spin.Success("Configuration applied successfully")
-	s.logger.Info("✨ Environment updated successfully!")
+	s.logger.Debug("Configuration applied successfully")
 	return nil
 }

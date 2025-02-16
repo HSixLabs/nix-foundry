@@ -1,4 +1,4 @@
-package init
+package initservice
 
 import (
 	"github.com/shawnkhoffman/nix-foundry/internal/services/project"

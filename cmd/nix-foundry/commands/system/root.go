@@ -2,9 +2,10 @@ package commands
 
 import (
 	"fmt"
-	"os/exec"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/update"
 	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
 	"github.com/spf13/cobra"
@@ -26,16 +27,24 @@ This command will:
 Example:
   nix-foundry update`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Initialize configuration service
+			// Initialize required services
 			configSvc := config.NewService()
+			platformSvc := platform.NewService()
+			envSvc := environment.NewService(
+				configSvc.GetConfigDir(),
+				configSvc,
+				platformSvc,
+			)
 
 			// Update flake inputs
 			spin := progress.NewSpinner("Updating Nix packages...")
 			spin.Start()
 
+			// Create update service with dependencies
+			updateSvc := update.NewService(configSvc, envSvc)
+
 			// Update flake
-			updateCmd := exec.Command("nix", "flake", "update", "--flake", configSvc.GetConfigDir())
-			if err := updateCmd.Run(); err != nil {
+			if err := updateSvc.UpdateFlake(configSvc.GetConfigDir()); err != nil {
 				spin.Fail("Failed to update packages")
 				return fmt.Errorf("failed to update flake: %w", err)
 			}
@@ -44,7 +53,6 @@ Example:
 			// Apply updated configuration
 			spin = progress.NewSpinner("Applying configuration...")
 			spin.Start()
-			updateSvc := update.NewService()
 			if err := updateSvc.ApplyConfiguration(configSvc.GetConfigDir(), testMode); err != nil {
 				spin.Fail("Failed to apply configuration")
 				return fmt.Errorf("failed to apply configuration: %w", err)

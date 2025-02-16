@@ -1,117 +1,203 @@
 package packages
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
-	"gopkg.in/yaml.v3"
 )
 
 type Service interface {
-	Add(pkgs []string, pkgType string) error
-	Remove(pkgs []string, pkgType string) error
+	Add(packages []string, pkgType string) error
+	Remove(packages []string, pkgType string) error
 	List() (map[string][]string, error)
 	Sync() error
 }
 
 type ServiceImpl struct {
-	logger     *logging.Logger
-	configPath string
+	configDir string
+	logger    *logging.Logger
 }
 
 func NewService(configDir string) Service {
 	return &ServiceImpl{
-		logger:     logging.GetLogger(),
-		configPath: filepath.Join(configDir, "packages.yaml"),
+		configDir: configDir,
+		logger:    logging.GetLogger(),
 	}
 }
 
-func (s *ServiceImpl) loadPackages() (map[string][]string, error) {
-	data := make(map[string][]string)
+func (s *ServiceImpl) Add(packages []string, pkgType string) error {
+	s.logger.Infof("Adding packages %v to type %s", packages, pkgType)
 
-	if _, err := os.Stat(s.configPath); err == nil {
-		file, err := os.ReadFile(s.configPath)
-		if err != nil {
-			return nil, errors.NewLoadError(s.configPath, err, "failed to read packages config")
-		}
+	// Ensure packages directory exists
+	packagesDir := filepath.Join(s.configDir, "environments", "default", "packages")
+	if err := os.MkdirAll(packagesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create packages directory: %w", err)
+	}
 
-		if err := yaml.Unmarshal(file, &data); err != nil {
-			return nil, errors.NewLoadError(s.configPath, err, "failed to parse packages config")
+	// Create or update the package type file
+	pkgFile := filepath.Join(packagesDir, fmt.Sprintf("%s.nix", pkgType))
+
+	// Read existing content if file exists
+	var existingPkgs []string
+	if content, err := os.ReadFile(pkgFile); err == nil {
+		// Parse existing packages
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			if pkg := strings.TrimSpace(line); pkg != "" && !strings.HasPrefix(pkg, "#") {
+				existingPkgs = append(existingPkgs, pkg)
+			}
 		}
 	}
 
-	return data, nil
-}
-
-func (s *ServiceImpl) savePackages(pkgs map[string][]string) error {
-	data, err := yaml.Marshal(pkgs)
-	if err != nil {
-		return errors.NewLoadError(s.configPath, err, "failed to serialize packages")
+	// Add new packages, avoiding duplicates
+	pkgMap := make(map[string]bool)
+	for _, pkg := range existingPkgs {
+		pkgMap[pkg] = true
+	}
+	for _, pkg := range packages {
+		pkgMap[pkg] = true
 	}
 
-	if err := os.WriteFile(s.configPath, data, 0644); err != nil {
-		return errors.NewLoadError(s.configPath, err, "failed to save packages configuration")
+	// Create the new file content
+	var content strings.Builder
+	content.WriteString("# This file is managed by nix-foundry\n")
+	content.WriteString("{\n")
+	content.WriteString("  environment.systemPackages = with pkgs; [\n")
+	for pkg := range pkgMap {
+		content.WriteString(fmt.Sprintf("    %s\n", pkg))
+	}
+	content.WriteString("  ];\n")
+	content.WriteString("}\n")
+
+	// Write the file
+	if err := os.WriteFile(pkgFile, []byte(content.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write package file: %w", err)
 	}
 
 	return nil
 }
 
-func (s *ServiceImpl) Add(pkgs []string, pkgType string) error {
-	existing, err := s.loadPackages()
+func (s *ServiceImpl) Remove(packages []string, pkgType string) error {
+	s.logger.Infof("Removing packages %v from type %s", packages, pkgType)
+
+	// Get package file path
+	pkgFile := filepath.Join(s.configDir, "environments", "default", "packages", fmt.Sprintf("%s.nix", pkgType))
+
+	// Read existing packages
+	content, err := os.ReadFile(pkgFile)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			return fmt.Errorf("package file does not exist for type %s", pkgType)
+		}
+		return fmt.Errorf("failed to read package file: %w", err)
 	}
 
-	existing[pkgType] = unique(append(existing[pkgType], pkgs...))
-	return s.savePackages(existing)
-}
-
-func (s *ServiceImpl) Remove(pkgs []string, pkgType string) error {
-	existing, err := s.loadPackages()
-	if err != nil {
-		return err
+	// Create set of packages to remove
+	removeSet := make(map[string]bool)
+	for _, pkg := range packages {
+		removeSet[pkg] = true
 	}
 
-	existing[pkgType] = filter(existing[pkgType], pkgs)
-	return s.savePackages(existing)
+	// Filter out removed packages
+	var remainingPkgs []string
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		pkg := strings.TrimSpace(line)
+		if pkg != "" && !strings.HasPrefix(pkg, "#") && !strings.HasPrefix(pkg, "{") && !strings.HasPrefix(pkg, "}") {
+			if !removeSet[pkg] {
+				remainingPkgs = append(remainingPkgs, pkg)
+			}
+		}
+	}
+
+	// Create new file content
+	var newContent strings.Builder
+	newContent.WriteString("# This file is managed by nix-foundry\n")
+	newContent.WriteString("{\n")
+	newContent.WriteString("  environment.systemPackages = with pkgs; [\n")
+	for _, pkg := range remainingPkgs {
+		newContent.WriteString(fmt.Sprintf("    %s\n", pkg))
+	}
+	newContent.WriteString("  ];\n")
+	newContent.WriteString("}\n")
+
+	// Write updated file
+	if err := os.WriteFile(pkgFile, []byte(newContent.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write package file: %w", err)
+	}
+
+	return nil
 }
 
 func (s *ServiceImpl) List() (map[string][]string, error) {
-	return s.loadPackages()
+	s.logger.Info("Listing packages")
+
+	result := make(map[string][]string)
+	packagesDir := filepath.Join(s.configDir, "environments", "default", "packages")
+
+	// Read package directory
+	files, err := os.ReadDir(packagesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return result, nil
+		}
+		return nil, fmt.Errorf("failed to read packages directory: %w", err)
+	}
+
+	// Process each .nix file
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), ".nix") {
+			continue
+		}
+
+		pkgType := strings.TrimSuffix(file.Name(), ".nix")
+		content, err := os.ReadFile(filepath.Join(packagesDir, file.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("failed to read package file %s: %w", file.Name(), err)
+		}
+
+		// Parse packages from file
+		var packages []string
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "{") && !strings.HasPrefix(line, "}") {
+				if pkg := strings.TrimSpace(strings.TrimPrefix(line, "environment.systemPackages")); pkg != "" {
+					packages = append(packages, pkg)
+				}
+			}
+		}
+
+		result[pkgType] = packages
+	}
+
+	return result, nil
 }
 
 func (s *ServiceImpl) Sync() error {
-	// Implementation that syncs packages with Nix configuration
-	// Would call config service to regenerate files
+	s.logger.Info("Synchronizing packages")
+
+	// Ensure packages directory exists
+	packagesDir := filepath.Join(s.configDir, "environments", "default", "packages")
+	if err := os.MkdirAll(packagesDir, 0755); err != nil {
+		return fmt.Errorf("failed to create packages directory: %w", err)
+	}
+
+	// Create default package files if they don't exist
+	defaultTypes := []string{"core", "user", "team"}
+	for _, pkgType := range defaultTypes {
+		pkgFile := filepath.Join(packagesDir, fmt.Sprintf("%s.nix", pkgType))
+		if _, err := os.Stat(pkgFile); os.IsNotExist(err) {
+			// Create empty package file
+			content := "# This file is managed by nix-foundry\n{\n  environment.systemPackages = with pkgs; [\n  ];\n}\n"
+			if err := os.WriteFile(pkgFile, []byte(content), 0644); err != nil {
+				return fmt.Errorf("failed to create %s package file: %w", pkgType, err)
+			}
+		}
+	}
+
 	return nil
-}
-
-// Helper functions
-func unique(slice []string) []string {
-	keys := make(map[string]bool)
-	list := []string{}
-	for _, item := range slice {
-		if _, value := keys[item]; !value {
-			keys[item] = true
-			list = append(list, item)
-		}
-	}
-	return list
-}
-
-func filter(source, remove []string) []string {
-	m := make(map[string]bool)
-	for _, item := range remove {
-		m[item] = true
-	}
-
-	var result []string
-	for _, item := range source {
-		if !m[item] {
-			result = append(result, item)
-		}
-	}
-	return result
 }

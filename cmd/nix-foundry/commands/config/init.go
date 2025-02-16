@@ -8,6 +8,7 @@ import (
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
 	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
 	"github.com/spf13/cobra"
 )
@@ -40,8 +41,7 @@ func NewInitCommand() *cobra.Command {
 			envService := environment.NewService(
 				configDir,
 				config.NewService(),
-				nil, // validation service (placeholder)
-				nil, // platform service (placeholder)
+				platform.NewService(),
 			)
 			if cfgErr := envService.Initialize(testMode); cfgErr != nil {
 				return fmt.Errorf("failed to initialize environment: %w", cfgErr)

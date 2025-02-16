@@ -8,95 +8,70 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 )
 
-// Validate checks if the project configuration is valid
-func (p *ProjectConfig) Validate() error {
-	if err := p.validateVersion(); err != nil {
-		return fmt.Errorf("invalid version: %w", err)
-	}
-
-	if err := p.validateName(); err != nil {
-		return fmt.Errorf("invalid name: %w", err)
-	}
-
-	if err := p.validateEnvironment(); err != nil {
-		return fmt.Errorf("invalid environment: %w", err)
-	}
-
-	if err := p.validateSettings(); err != nil {
-		return fmt.Errorf("invalid settings: %w", err)
-	}
-
-	if err := p.validateDependencies(); err != nil {
-		return fmt.Errorf("invalid dependencies: %w", err)
-	}
-
-	return nil
-}
-
-func (p *ProjectConfig) validateVersion() error {
-	if p.Version == "" {
+func (c *Config) validateVersion() error {
+	if c.Version == "" {
 		return fmt.Errorf("version is required")
 	}
 	validVersions := []string{"1.0", "1.1", "1.2"}
 	for _, v := range validVersions {
-		if p.Version == v {
+		if c.Version == v {
 			return nil
 		}
 	}
-	return fmt.Errorf("unsupported version: %s", p.Version)
+	return fmt.Errorf("unsupported version: %s", c.Version)
 }
 
-func (p *ProjectConfig) validateName() error {
-	if p.Name == "" {
+func (c *Config) validateName() error {
+	if c.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-	if len(p.Name) > 50 {
+	if len(c.Name) > 50 {
 		return fmt.Errorf("name exceeds maximum length of 50 characters")
 	}
 	return nil
 }
 
-func (p *ProjectConfig) validateEnvironment() error {
-	if p.Environment == "" {
+func (c *Config) validateEnvironment() error {
+	if c.Environment == "" {
 		return fmt.Errorf("environment is required")
 	}
 	validEnvs := []string{"development", "staging", "production"}
 	for _, env := range validEnvs {
-		if p.Environment == env {
+		if c.Environment == env {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid environment: %s", p.Environment)
+	return fmt.Errorf("invalid environment: %s", c.Environment)
 }
 
-func (p *ProjectConfig) validateSettings() error {
+func (c *Config) validateSettings() error {
 	// Validate log level
 	validLogLevels := []string{"debug", "info", "warn", "error"}
 	found := false
 	for _, level := range validLogLevels {
-		if p.Settings.LogLevel == level {
+		if c.Settings.LogLevel == level {
 			found = true
 			break
 		}
 	}
 	if !found {
-		return fmt.Errorf("invalid log level: %s", p.Settings.LogLevel)
+		return fmt.Errorf("invalid log level: %s", c.Settings.LogLevel)
 	}
 
 	// Validate update interval if auto-update is enabled
-	if p.Settings.AutoUpdate && p.Settings.UpdateInterval != "" {
+	if c.Settings.AutoUpdate && c.Settings.UpdateInterval != "" {
 		// Parse duration to validate format
-		if _, err := time.ParseDuration(p.Settings.UpdateInterval); err != nil {
-			return fmt.Errorf("invalid update interval format: %s", p.Settings.UpdateInterval)
+		if _, err := time.ParseDuration(c.Settings.UpdateInterval); err != nil {
+			return fmt.Errorf("invalid update interval format: %s", c.Settings.UpdateInterval)
 		}
 	}
 
 	return nil
 }
 
-func (p *ProjectConfig) validateDependencies() error {
+func (c *Config) validateDependencies() error {
 	seen := make(map[string]bool)
-	for _, dep := range p.Dependencies {
+	for _, dep := range c.Dependencies {
 		if dep == "" {
 			return fmt.Errorf("empty dependency name")
 		}

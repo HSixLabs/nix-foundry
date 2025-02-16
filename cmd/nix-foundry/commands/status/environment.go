@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/validation"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
@@ -20,18 +19,16 @@ func NewEnvironmentCommand() *cobra.Command {
 		Short: "Show environment status",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Initialize required services
-			configSvc := config.NewService()
-			validator := validation.NewService()
+			cfgSvc := config.NewService()
 			platformSvc := platform.NewService()
 
 			envSvc := environment.NewService(
-				configSvc.GetConfigDir(),
-				configSvc,
-				validator,
+				cfgSvc.GetConfigDir(),
+				cfgSvc,
 				platformSvc,
 			)
 
-			svc := status.NewService(configSvc, envSvc)
+			svc := status.NewService(cfgSvc, envSvc)
 			status, err := svc.CheckEnvironment()
 			if err != nil {
 				return err

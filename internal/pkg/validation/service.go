@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
 )
 
 type Service interface {
@@ -85,12 +86,20 @@ func (v *Validator) ValidateConfig(config interface{}) error {
 	// Use reflection to handle different config types
 	val := reflect.ValueOf(config)
 	if val.Kind() == reflect.Ptr {
-		val = val.Elem()
+		config = val.Elem().Interface()
 	}
 
 	// Handle specific config types
 	switch cfg := config.(type) {
-	case *ProjectConfig:
+	case *project.Config:
+		if err := cfg.Validate(); err != nil {
+			return errors.E(
+				errors.Operation("config_validation"),
+				errors.ErrConfigValidation,
+				err,
+			).WithContext("config_type", "project")
+		}
+	case project.Config:
 		if err := cfg.Validate(); err != nil {
 			return errors.E(
 				errors.Operation("config_validation"),

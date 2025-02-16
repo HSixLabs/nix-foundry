@@ -10,10 +10,7 @@ import (
 )
 
 func NewRollbackCommand(svc environment.Service) *cobra.Command {
-	var (
-		timestamp string
-		force     bool
-	)
+	var force bool
 
 	cmd := &cobra.Command{
 		Use:   "rollback [timestamp|duration]",
@@ -27,7 +24,7 @@ func NewRollbackCommand(svc environment.Service) *cobra.Command {
 
 			if err := svc.Rollback(target, force); err != nil {
 				if !force {
-					fmt.Printf("Rollback failed: %v\nUse --force to override conflicts", err)
+					fmt.Printf("Rollback failed: %v\nUse --force to override conflicts\n", err)
 					return err
 				}
 				return fmt.Errorf("forced rollback failed: %w", err)
@@ -39,16 +36,15 @@ func NewRollbackCommand(svc environment.Service) *cobra.Command {
 	}
 
 	flags.AddForceFlag(cmd)
-	cmd.Flags().StringVarP(&timestamp, "timestamp", "t", "", "Exact backup timestamp (YYYYMMDD-HHMMSS)")
 	return cmd
 }
 
 func parseTimestamp(input string) (time.Time, error) {
-	// Try duration format first
+	// Try parsing as duration first (e.g., "24h", "7d")
 	if duration, err := time.ParseDuration(input); err == nil {
 		return time.Now().Add(-duration), nil
 	}
 
-	// Try timestamp format
+	// Try parsing as timestamp
 	return time.Parse("20060102-150405", input)
 }

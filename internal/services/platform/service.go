@@ -15,6 +15,7 @@ type Service interface {
 	InstallHomeManager() error
 	ValidateBackup(backupPath string) error
 	RestoreFromBackup(backupPath, targetDir string) error
+	EnableFlakeFeatures() error
 }
 
 type ServiceImpl struct {
@@ -97,4 +98,23 @@ func (s *ServiceImpl) ValidateBackup(backupPath string) error {
 func (s *ServiceImpl) RestoreFromBackup(backupPath, targetDir string) error {
 	// Implementation of RestoreFromBackup method
 	return os.Rename(backupPath, targetDir)
+}
+
+func (s *ServiceImpl) EnableFlakeFeatures() error {
+	s.logger.Info("Enabling Nix flake features")
+
+	// Create .config/nix directory if it doesn't exist
+	nixConfigDir := os.Getenv("HOME") + "/.config/nix"
+	if err := os.MkdirAll(nixConfigDir, 0755); err != nil {
+		return errors.NewPlatformError(err, "failed to create nix config directory")
+	}
+
+	// Write nix.conf with flake features enabled
+	nixConfPath := nixConfigDir + "/nix.conf"
+	content := "experimental-features = nix-command flakes"
+	if err := os.WriteFile(nixConfPath, []byte(content), 0644); err != nil {
+		return errors.NewPlatformError(err, "failed to write nix.conf")
+	}
+
+	return nil
 }

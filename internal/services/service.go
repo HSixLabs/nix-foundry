@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
 )
 
 // ConfigurationService handles business logic for configuration management
@@ -29,7 +30,7 @@ func (s *ConfigurationService) InitializeProject(projectName, teamName string, f
 
 	projectCfg := config.ProjectConfig{
 		BaseConfig: config.BaseConfig{
-			Type:    config.ProjectConfigType,
+			Type:    config.ProjectType,
 			Version: "1.0",
 			Name:    projectName,
 		},
@@ -37,7 +38,7 @@ func (s *ConfigurationService) InitializeProject(projectName, teamName string, f
 	}
 
 	if teamName != "" {
-		teamConfig, err := s.configManager.LoadConfig(config.TeamConfigType, teamName)
+		teamConfig, err := s.configManager.LoadConfig(config.TeamType, teamName)
 		if err != nil {
 			return fmt.Errorf("failed to load team configuration: %w", err)
 		}
@@ -160,4 +161,33 @@ func (s *ConfigurationService) ApplyConfiguration(testMode bool) error {
 	}
 
 	return nil
+}
+
+// Remove the standalone functions and add them as methods to ConfigurationService
+func (s *ConfigurationService) LoadProjectConfig(name string) (*project.Config, error) {
+	cfg, err := s.configManager.LoadConfig(config.ProjectType, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load project config: %w", err)
+	}
+
+	projectCfg, ok := cfg.(*project.Config)
+	if !ok {
+		return nil, fmt.Errorf("invalid configuration type")
+	}
+
+	return projectCfg, nil
+}
+
+func (s *ConfigurationService) LoadTeamConfig(name string) (*config.TeamConfig, error) {
+	cfg, err := s.configManager.LoadConfig(config.TeamType, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load team config: %w", err)
+	}
+
+	teamCfg, ok := cfg.(*config.TeamConfig)
+	if !ok {
+		return nil, fmt.Errorf("invalid team configuration type")
+	}
+
+	return teamCfg, nil
 }

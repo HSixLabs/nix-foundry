@@ -10,20 +10,24 @@ func NewCmd(svc backup.Service) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "backup",
 		Short: "Manage environment backups",
+		Long: `Manage environment backups including creation, restoration, and maintenance.
+Examples:
+  nix-foundry backup create daily-backup
+  nix-foundry backup restore last-working
+  nix-foundry backup list
+  nix-foundry backup rotate`,
 	}
 
 	cmd.AddCommand(
 		NewCreateCmd(svc),
-		NewRestoreCmd(svc),
+		NewRestoreCommand(svc),
 		NewListCmd(svc),
 		NewDeleteCmd(svc),
 		NewRotateCmd(svc),
 		newConfigCmd(svc),
-		newDecryptCmd(svc),
 		newEncryptCmd(svc),
+		newDecryptCmd(svc),
 	)
 
 	return cmd
 }
-
-// Removed duplicate function declarations - implementations exist in restore.go and list.go

@@ -2,7 +2,8 @@ package backup
 
 import (
 	"fmt"
-	"time"
+	"os"
+	"text/tabwriter"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/backup"
 	"github.com/spf13/cobra"
@@ -25,13 +26,17 @@ Shows backup name, creation time, and size.`,
 				return nil
 			}
 
-			fmt.Println("Available backups:")
+			// Initialize tabwriter
+			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+			defer w.Flush()
+
+			fmt.Fprintln(w, "ID\tTIMESTAMP\tSIZE\tPATH")
 			for _, b := range backups {
-				fmt.Printf("- %s (created: %s, size: %d bytes)\n",
-					b.Name,
-					b.CreatedAt.Format(time.RFC3339),
+				fmt.Fprintf(w, "%s\t%s\t%d\t%s\n",
+					b.ID,
+					b.Timestamp.Format("2006-01-02 15:04"),
 					b.Size,
-				)
+					b.Path)
 			}
 
 			return nil

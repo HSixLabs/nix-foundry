@@ -15,6 +15,7 @@ func NewCmd(svc environment.Service) *cobra.Command {
 		NewCreateCommand(svc),
 		NewSwitchCommand(svc),
 		NewListCommand(svc),
+		NewRollbackCommand(svc),
 	)
 
 	return cmd

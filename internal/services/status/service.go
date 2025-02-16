@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
@@ -13,18 +14,25 @@ import (
 type Service struct {
 	configSvc      config.Service
 	environmentSvc environment.Service
+	logger         *logging.Logger
 }
 
 func NewService(cfgSvc config.Service, envSvc environment.Service) *Service {
 	return &Service{
 		configSvc:      cfgSvc,
 		environmentSvc: envSvc,
+		logger:         logging.GetLogger(),
 	}
 }
 
 func (s *Service) CheckEnvironment() (EnvironmentStatus, error) {
+	currentEnv, err := s.environmentSvc.GetCurrentEnvironment()
+	if err != nil {
+		s.logger.Warn("Failed to get current environment", "error", err)
+		currentEnv = "unknown"
+	}
 	status := EnvironmentStatus{
-		Active:    s.environmentSvc.GetCurrentEnvironment(),
+		Active:    currentEnv,
 		Packages:  s.getPackagesFromConfig(),
 		Health:    s.environmentSvc.CheckHealth(),
 		LastApply: s.getLastApplyTime(),
@@ -76,7 +84,7 @@ func checkServices() map[string]string {
 }
 
 func (s *Service) getPackagesFromConfig() []string {
-	var projectCfg project.ProjectConfig
+	var projectCfg project.Config
 	if err := s.configSvc.LoadSection("project", &projectCfg); err == nil {
 		return projectCfg.Dependencies
 	}

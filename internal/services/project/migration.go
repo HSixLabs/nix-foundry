@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 )
 
 // MigrationFunc defines a function that migrates configuration from one version to another
-type MigrationFunc func(*ProjectConfig) error
+type MigrationFunc func(*Config) error
 
 // migrationMap stores available migrations between versions
 var migrationMap = map[string]MigrationFunc{
@@ -34,6 +35,23 @@ func (s *ServiceImpl) Migrate() error {
 		"from_version", currentVersion,
 		"to_version", latestVersion)
 
+	// Add this section where appropriate
+	if s.projectConfig.Version == "1.0" {
+		legacyConfig := &LegacyConfig{
+			Version:      s.projectConfig.Version,
+			Name:         s.projectConfig.Name,
+			Environment:  s.projectConfig.Environment,
+			Dependencies: s.projectConfig.Dependencies,
+		}
+
+		newConfig, err := migrateConfig(legacyConfig)
+		if err != nil {
+			return fmt.Errorf("failed to migrate config: %w", err)
+		}
+
+		s.projectConfig = newConfig
+	}
+
 	// Apply migrations in sequence
 	for currentVersion != latestVersion {
 		nextVersion := getNextVersion(currentVersion)
@@ -57,7 +75,7 @@ func (s *ServiceImpl) Migrate() error {
 }
 
 // Example migration function
-func migrateV1_0ToV1_1(cfg *ProjectConfig) error {
+func migrateV1_0ToV1_1(cfg *Config) error {
 	// Add new fields with default values
 	if cfg.Settings.LogLevel == "" {
 		cfg.Settings.LogLevel = "info"
@@ -71,7 +89,7 @@ func migrateV1_0ToV1_1(cfg *ProjectConfig) error {
 	return nil
 }
 
-func migrateV1_1ToV1_2(cfg *ProjectConfig) error {
+func migrateV1_1ToV1_2(cfg *Config) error {
 	// Example: Add new required settings
 	if cfg.Settings.AutoUpdate {
 		cfg.Settings.UpdateInterval = "24h"
@@ -89,4 +107,21 @@ func getNextVersion(current string) string {
 	default:
 		return current
 	}
+}
+
+func migrateConfig(legacy *LegacyConfig) (*Config, error) {
+	if legacy == nil {
+		return nil, fmt.Errorf("nil legacy config")
+	}
+
+	return &Config{
+		Version:      legacy.Version,
+		Name:         legacy.Name,
+		Environment:  legacy.Environment,
+		Dependencies: legacy.Dependencies,
+		Settings: config.Settings{
+			LogLevel:   "info", // default value
+			AutoUpdate: true,   // default value
+		},
+	}, nil
 }

@@ -12,7 +12,6 @@ import (
 	statusCmd "github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/commands/status"
 	uninstallCmd "github.com/shawnkhoffman/nix-foundry/cmd/nix-foundry/commands/uninstall"
 	"github.com/shawnkhoffman/nix-foundry/internal/flags"
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/validation"
 	backupSvc "github.com/shawnkhoffman/nix-foundry/internal/services/backup"
 	configSvc "github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	environmentSvc "github.com/shawnkhoffman/nix-foundry/internal/services/environment"
@@ -46,13 +45,11 @@ func init() {
 
 	// Initialize service dependencies
 	cfgSvc := configSvc.NewService()
-	validator := validation.NewService()
 	platformSvc := platform.NewService()
 
 	envSvc := environmentSvc.NewService(
 		cfgSvc.GetConfigDir(),
 		cfgSvc,
-		validator,
 		platformSvc,
 	)
 

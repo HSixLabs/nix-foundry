@@ -24,11 +24,18 @@ type BackupService struct {
 func NewBackupService() (*BackupService, error) {
 	configManager := config.NewManager()
 
-	// Load backup configuration or use defaults
-	backupConfig := config.DefaultBackupConfig()
+	// Load and validate backup configuration
+	var backupConfig config.BackupConfig
 	if err := configManager.LoadSection("backup", &backupConfig); err != nil {
+		// Use defaults if config doesn't exist
+		backupConfig = config.DefaultBackupConfig()
 		// Log warning but continue with defaults
 		fmt.Fprintf(os.Stderr, "Warning: using default backup settings: %v\n", err)
+	} else {
+		// Validate existing configuration
+		if err := backupConfig.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid backup configuration: %w", err)
+		}
 	}
 
 	return &BackupService{
@@ -36,12 +43,6 @@ func NewBackupService() (*BackupService, error) {
 		backupConfig:  backupConfig,
 	}, nil
 }
-
-// Add these constants at the top of the file
-const (
-	maxBackups   = 10                  // Maximum number of backups to keep
-	maxBackupAge = 30 * 24 * time.Hour // Maximum age of backups (30 days)
-)
 
 // CreateBackup creates a backup of the current configuration
 func (s *BackupService) CreateBackup(name string) error {
@@ -89,7 +90,9 @@ func (s *BackupService) CreateBackup(name string) error {
 		}
 
 		// Skip if it's in the backups directory
-		if filepath.HasPrefix(relPath, "backups") {
+		cleanPath := filepath.Clean(relPath)
+		pathParts := strings.Split(cleanPath, string(filepath.Separator))
+		if len(pathParts) > 0 && pathParts[0] == "backups" {
 			return nil
 		}
 
@@ -351,20 +354,4 @@ func (s *BackupService) UpdateConfig(cfg config.BackupConfig) error {
 
 	// Save to config file
 	return s.configManager.SaveSection("backup", cfg)
-}
-
-// Add validation when loading configuration
-func (s *BackupService) loadConfig() error {
-	var cfg config.BackupConfig
-	if err := s.configManager.LoadSection("backup", &cfg); err != nil {
-		// Use defaults if config doesn't exist
-		cfg = config.DefaultBackupConfig()
-	} else {
-		// Validate existing configuration
-		if err := cfg.Validate(); err != nil {
-			return fmt.Errorf("invalid backup configuration: %w", err)
-		}
-	}
-	s.backupConfig = cfg
-	return nil
 }

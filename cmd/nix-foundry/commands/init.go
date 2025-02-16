@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/pkg/validation"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
@@ -35,7 +34,6 @@ func NewInitCommand() *cobra.Command {
 			envSvc := environment.NewService(
 				configSvc.GetConfigDir(),
 				configSvc,
-				validation.NewService(),
 				platformSvc,
 			)
 
@@ -58,7 +56,7 @@ func NewInitCommand() *cobra.Command {
 			if autoConfig || testMode || confirmApply() {
 				spin = progress.NewSpinner("Applying configuration...")
 				spin.Start()
-				updateSvc := update.NewService()
+				updateSvc := update.NewService(configSvc, envSvc)
 				if err := updateSvc.ApplyConfiguration(configSvc.GetConfigDir(), testMode); err != nil {
 					spin.Fail("Failed to apply configuration")
 					return err

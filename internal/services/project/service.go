@@ -18,7 +18,7 @@ type Service interface {
 	Load() error
 	Save() error
 	ValidateConflicts(personal *config.Config) error
-	GetProjectConfig() *ProjectConfig
+	GetProjectConfig() *Config
 	Import(path string) error
 	Export(path string) error
 	InitializeProject(name, team string, force bool) error
@@ -34,35 +34,27 @@ type ServiceImpl struct {
 	configService  config.Service
 	envService     environment.Service
 	packageService packages.Service
-	projectConfig  *ProjectConfig
+	projectConfig  *Config
 	logger         *logging.Logger
 }
 
-// ProjectConfig represents project-specific configuration
-type ProjectConfig struct {
-	Version      string          `yaml:"version"`
-	Name         string          `yaml:"name"`
-	Environment  string          `yaml:"environment"`
-	Settings     config.Settings `yaml:"settings"`
-	Dependencies []string        `yaml:"dependencies"`
-}
-
+// NewService creates a new project service instance
 func NewService(
-	cfgSvc config.Service,
-	envSvc environment.Service,
-	pkgSvc packages.Service,
+	configService config.Service,
+	envService environment.Service,
+	pkgService packages.Service,
 ) Service {
 	return &ServiceImpl{
-		configService:  cfgSvc,
-		envService:     envSvc,
-		packageService: pkgSvc,
+		configService:  configService,
+		envService:     envService,
+		packageService: pkgService,
 		logger:         logging.GetLogger(),
 	}
 }
 
 func (s *ServiceImpl) Load() error {
 	s.logger.Info("Loading project configuration")
-	var cfg ProjectConfig
+	var cfg Config
 	if err := s.configService.LoadSection("project", &cfg); err != nil {
 		s.logger.WithError(err).Error("Failed to load project configuration")
 		return fmt.Errorf("failed to load project configuration section: %w", err)
@@ -108,7 +100,7 @@ func (s *ServiceImpl) ValidateConflicts(personal *config.Config) error {
 	return nil
 }
 
-func (s *ServiceImpl) GetProjectConfig() *ProjectConfig {
+func (s *ServiceImpl) GetProjectConfig() *Config {
 	return s.projectConfig
 }
 
@@ -124,6 +116,9 @@ func (s *ServiceImpl) Import(path string) error {
 	// Check if path is a directory
 	fi, err := os.Stat(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.NewNotFoundError(err, "configuration file not found")
+		}
 		s.logger.WithError(err).Error("Failed to access path", "path", path)
 		return errors.NewLoadError(path, err, "failed to access configuration path")
 	}
@@ -131,15 +126,15 @@ func (s *ServiceImpl) Import(path string) error {
 	var configPath string
 	if fi.IsDir() {
 		configPath = filepath.Join(path, "nix-foundry.yaml")
-		if _, err := os.Stat(configPath); err != nil {
-			return errors.NewLoadError(path, err, "no nix-foundry.yaml found in directory")
+		if _, statErr := os.Stat(configPath); statErr != nil {
+			return errors.NewLoadError(path, statErr, "no nix-foundry.yaml found in directory")
 		}
 	} else {
 		configPath = path
 	}
 
 	// Load and validate the config
-	var cfg ProjectConfig
+	var cfg Config
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return errors.NewLoadError(configPath, err, "failed to read config file")
@@ -196,7 +191,7 @@ func (s *ServiceImpl) InitializeProject(name, team string, force bool) error {
 	}
 
 	// Create base config
-	projectCfg := ProjectConfig{
+	projectCfg := Config{
 		Version:     "1.0",
 		Name:        name,
 		Environment: "default",
@@ -229,7 +224,7 @@ func (s *ServiceImpl) InitializeProject(name, team string, force bool) error {
 	return nil
 }
 
-func (s *ServiceImpl) mergeTeamConfig(projectCfg ProjectConfig, _ *config.Config) *ProjectConfig {
+func (s *ServiceImpl) mergeTeamConfig(projectCfg Config, _ *config.Config) *Config {
 	// TODO: Implement team config merging logic
 	return &projectCfg
 }
@@ -264,7 +259,7 @@ func (s *ServiceImpl) UpdateProjectConfig(team string) error {
 	return nil
 }
 
-func mergeConfigs(project *ProjectConfig, _ *config.Config) *ProjectConfig {
+func mergeConfigs(project *Config, _ *config.Config) *Config {
 	// Implementation of config merging logic
 	return project
 }
@@ -292,3 +287,28 @@ func (s *ServiceImpl) GetConfigDir() string {
 // func (s *ServiceImpl) validateTeamPermissions(_ *config.Config) error {
 // 	return nil
 // }
+
+// Update the existing Validate method to use all validation helpers
+func (c *Config) Validate() error {
+	if err := c.validateVersion(); err != nil {
+		return fmt.Errorf("version validation failed: %w", err)
+	}
+
+	if err := c.validateName(); err != nil {
+		return fmt.Errorf("name validation failed: %w", err)
+	}
+
+	if err := c.validateEnvironment(); err != nil {
+		return fmt.Errorf("environment validation failed: %w", err)
+	}
+
+	if err := c.validateSettings(); err != nil {
+		return fmt.Errorf("settings validation failed: %w", err)
+	}
+
+	if err := c.validateDependencies(); err != nil {
+		return fmt.Errorf("dependencies validation failed: %w", err)
+	}
+
+	return nil
+}

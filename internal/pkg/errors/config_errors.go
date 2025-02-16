@@ -20,30 +20,3 @@ func (e *ConfigError) Error() string {
 func (e *ConfigError) Unwrap() error {
 	return e.Err
 }
-
-// Common error constructors
-func NewLoadError(path string, err error, details string) error {
-	return &ConfigError{
-		Op:      "Load",
-		Path:    path,
-		Err:     err,
-		Details: details,
-	}
-}
-
-func NewValidationError(path string, err error, details string) error {
-	return &ConfigError{
-		Op:      "Validate",
-		Path:    path,
-		Err:     err,
-		Details: details,
-	}
-}
-
-func NewConflictError(err error, details string) error {
-	return &ConfigError{
-		Op:      "ConflictCheck",
-		Err:     err,
-		Details: details,
-	}
-}

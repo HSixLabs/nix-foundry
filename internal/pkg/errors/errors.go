@@ -124,3 +124,68 @@ func (e *AlreadyExistsError) Error() string {
 func NewAlreadyExistsError(path string) error {
 	return &AlreadyExistsError{Path: path}
 }
+
+type BackupError struct {
+	Path string
+	Err  error
+	Msg  string
+}
+
+func (e *BackupError) Error() string {
+	return fmt.Sprintf("%s: %v", e.Msg, e.Err)
+}
+
+func NewBackupError(path string, err error, msg string) error {
+	return &BackupError{
+		Path: path,
+		Err:  err,
+		Msg:  msg,
+	}
+}
+
+func NewLoadError(path string, err error, details string) error {
+	return &ConfigError{
+		Op:      "Load",
+		Path:    path,
+		Err:     err,
+		Details: details,
+	}
+}
+
+func NewValidationError(path string, err error, details string) error {
+	return &ConfigError{
+		Op:      "Validate",
+		Path:    path,
+		Err:     err,
+		Details: details,
+	}
+}
+
+func NewConflictError(err error, details string) error {
+	return &ConfigError{
+		Op:      "ConflictCheck",
+		Err:     err,
+		Details: details,
+	}
+}
+
+// Add the missing NotFoundError type and constructor
+type NotFoundError struct {
+	Err     error
+	Details string
+}
+
+func (e *NotFoundError) Error() string {
+	return fmt.Sprintf("not found: %v (%s)", e.Err, e.Details)
+}
+
+func (e *NotFoundError) Unwrap() error {
+	return e.Err
+}
+
+func NewNotFoundError(err error, details string) error {
+	return &NotFoundError{
+		Err:     err,
+		Details: details,
+	}
+}
