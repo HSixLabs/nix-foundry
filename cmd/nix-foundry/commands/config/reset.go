@@ -8,52 +8,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newResetCmd(cfgSvc config.Service) *cobra.Command {
+func NewResetCommand(cfgSvc config.Service) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:   "reset [section]",
-		Short: "Reset configuration to defaults",
-		Long: `Reset configuration settings to their default values.
-Optionally specify a section to reset only that part.
-
-Examples:
-  nix-foundry config reset
-  nix-foundry config reset backup
-  nix-foundry config reset environment`,
+		Use:   "reset <key>",
+		Short: "Reset configuration values to defaults",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			key := strings.ToLower(args[0])
 			if !force {
-				fmt.Print("This will reset configuration to defaults. Continue? [y/N]: ")
-				if !confirmAction() {
-					fmt.Println("Reset cancelled")
-					return nil
-				}
+				return fmt.Errorf("reset requires --force flag")
 			}
-
-			section := ""
-			if len(args) > 0 {
-				section = args[0]
-			}
-
-			if err := cfgSvc.Reset(section); err != nil {
-				return fmt.Errorf("failed to reset configuration: %w", err)
-			}
-
-			fmt.Println("✅ Configuration reset successfully")
-			return nil
+			return cfgSvc.ResetValue(key)
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "Skip confirmation prompt")
-
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Confirm reset operation")
 	return cmd
-}
-
-func confirmAction() bool {
-	var response string
-	_, err := fmt.Scanln(&response)
-	if err != nil {
-		return false
-	}
-	return strings.EqualFold(response, "y") || strings.EqualFold(response, "yes")
 }

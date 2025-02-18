@@ -8,16 +8,24 @@ import (
 )
 
 func NewConfigCommand() *cobra.Command {
-	return &cobra.Command{
+	var verbose bool
+
+	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Validate configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfgSvc := config.NewService()
-			if err := cfgSvc.ValidateConfiguration(); err != nil {
+			err := cfgSvc.ValidateConfiguration(verbose)
+			if err != nil && !verbose { // Only show error if not in verbose mode
 				return fmt.Errorf("config validation failed: %w", err)
 			}
-			fmt.Println("✅ Configuration is valid")
+			if verbose && err == nil {
+				fmt.Println("✅ Configuration is valid")
+			}
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show detailed validation output")
+	return cmd
 }

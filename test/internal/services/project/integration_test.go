@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	configtypes "github.com/shawnkhoffman/nix-foundry/internal/services/config/types"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/packages"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
@@ -37,24 +39,29 @@ func TestProjectIntegration(t *testing.T) {
 			configDir,
 			configService,
 			platform.NewService(),
+			true,
+			true,
+			true,
 		)
 		packageService := packages.NewService(configDir)
 		projectService := project.NewService(configService, envService, packageService)
 
 		// Create test project config
-		projectConfig := &project.Config{
-			Version:     "1.0",
-			Name:        "test-project",
-			Environment: "development",
-			Settings: config.Settings{
-				LogLevel:   "info",
-				AutoUpdate: true,
+		testConfig := &project.Config{
+			Project: configtypes.ProjectConfig{
+				Version:     "1.0",
+				Name:        "test-project",
+				Environment: "development",
+				Settings: map[string]string{
+					"autoUpdate": "true",
+					"logLevel":   "info",
+				},
+				Dependencies: []string{"git"},
 			},
-			Dependencies: []string{"git"},
 		}
 
 		// Validate the config before using it
-		if err := projectConfig.Validate(); err != nil {
+		if err := testConfig.Validate(); err != nil {
 			t.Fatalf("Invalid project config: %v", err)
 		}
 
@@ -62,7 +69,7 @@ func TestProjectIntegration(t *testing.T) {
 		exportPath := filepath.Join(configDir, "export-test.yaml")
 
 		// Initialize the project with the config
-		if err := projectService.InitializeProject(projectConfig.Name, "test-team", true); err != nil {
+		if err := projectService.InitializeProject(testConfig.Project.Name, "test-team", true); err != nil {
 			t.Fatalf("Failed to initialize project: %v", err)
 		}
 
@@ -79,15 +86,8 @@ func TestProjectIntegration(t *testing.T) {
 
 		// Verify imported config matches original config
 		importedConfig := newService.GetProjectConfig()
-		if importedConfig.Version != projectConfig.Version {
-			t.Errorf("Version mismatch: got %s, want %s", importedConfig.Version, projectConfig.Version)
-		}
-		if importedConfig.Environment != projectConfig.Environment {
-			t.Errorf("Environment mismatch: got %s, want %s", importedConfig.Environment, projectConfig.Environment)
-		}
-		if len(importedConfig.Dependencies) != len(projectConfig.Dependencies) {
-			t.Errorf("Dependencies length mismatch: got %d, want %d",
-				len(importedConfig.Dependencies), len(projectConfig.Dependencies))
+		if !reflect.DeepEqual(testConfig, importedConfig) {
+			t.Errorf("Expected imported config to match original config")
 		}
 
 		// Test backup creation during import
@@ -101,19 +101,20 @@ func TestProjectIntegration(t *testing.T) {
 		}
 
 		// Test conflict validation with personal config
-		personalConfig := &config.Config{
-			Version: "1.0",
-			Settings: config.Settings{
-				LogLevel:   "info",
-				AutoUpdate: true,
+		cfg := &configtypes.Config{
+			NixConfig: &configtypes.NixConfig{
+				Settings: configtypes.Settings{
+					LogLevel:   "info",
+					AutoUpdate: true,
+				},
 			},
-			Environment: config.EnvironmentSettings{
+			Environment: configtypes.EnvironmentSettings{
 				Default:    "development",
 				AutoSwitch: true,
 			},
 		}
 
-		if err := newService.ValidateConflicts(personalConfig); err != nil {
+		if err := newService.ValidateConflicts(cfg); err != nil {
 			t.Errorf("ValidateConflicts failed: %v", err)
 		}
 
@@ -135,6 +136,9 @@ func TestProjectIntegration(t *testing.T) {
 			configDir,
 			configService,
 			platform.NewService(),
+			true,
+			true,
+			true,
 		)
 		packageService := packages.NewService(configDir)
 		projectService := project.NewService(configService, envService, packageService)
@@ -168,12 +172,14 @@ func TestProjectIntegration(t *testing.T) {
 
 		// Test backup creation during import
 		validConfig := &project.Config{
-			Version:     "1.2",
-			Name:        "test-project",
-			Environment: "development",
-			Settings: config.Settings{
-				LogLevel:   "info",
-				AutoUpdate: true,
+			Project: configtypes.ProjectConfig{
+				Version:     "1.2",
+				Name:        "test-project",
+				Environment: "development",
+				Settings: map[string]string{
+					"LogLevel":   "info",
+					"AutoUpdate": "true",
+				},
 			},
 		}
 

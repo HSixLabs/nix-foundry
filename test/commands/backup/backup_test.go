@@ -158,6 +158,11 @@ func newDecryptCmd(svc backup.Service) *cobra.Command {
 	}
 }
 
+// Add helper function for interface conversion
+func asService(ps project.ProjectService) project.Service {
+	return ps.(project.Service)
+}
+
 // Updated command creation function
 func NewBackupCommand() *cobra.Command {
 	configSvc := config.NewService()
@@ -167,6 +172,9 @@ func NewBackupCommand() *cobra.Command {
 		"", // empty string for test
 		configSvc,
 		platformSvc,
+		true,  // Enable test mode for testing
+		true,  // Enable isolation for test environment
+		true,  // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService("")
@@ -175,7 +183,7 @@ func NewBackupCommand() *cobra.Command {
 	return NewCreateCmd(backup.NewService(
 		configSvc,
 		envSvc,
-		projectSvc,
+		asService(projectSvc),
 	))
 }
 
@@ -194,11 +202,16 @@ func TestBackups(t *testing.T) {
 		tempDir,
 		cfgManager,
 		platformSvc,
+		true,  // Enable test mode for testing
+		true,  // Enable isolation for test environment
+		true,  // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(tempDir)
 	projectSvc := project.NewService(cfgManager, envSvc, pkgSvc)
-	svc := backup.NewService(cfgManager, envSvc, projectSvc)
+
+	// Use asService helper function for interface conversion
+	svc := backup.NewService(cfgManager, envSvc, asService(projectSvc))
 
 	// Create test configuration directory structure
 	testFiles := []string{
@@ -536,7 +549,7 @@ func TestBackups(t *testing.T) {
 	})
 }
 
-func TestBackupCommand(t *testing.T) {
+func TestBackupCommands(t *testing.T) {
 	configService := config.NewService()
 	platformSvc := platform.NewService()
 
@@ -544,11 +557,16 @@ func TestBackupCommand(t *testing.T) {
 		configService.GetConfigDir(),
 		configService,
 		platformSvc,
+		true,  // Enable test mode for testing
+		true,  // Enable isolation for test environment
+		true,  // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(configService.GetConfigDir())
 	projectSvc := project.NewService(configService, envService, pkgSvc)
-	backupSvc := backup.NewService(configService, envService, projectSvc)
+
+	// Use asService helper function for interface conversion
+	backupSvc := backup.NewService(configService, envService, asService(projectSvc))
 
 	t.Run("create backup", func(t *testing.T) {
 		cmd := NewCreateCmd(backupSvc)
@@ -575,11 +593,16 @@ func TestRestoreCommand(t *testing.T) {
 		configService.GetConfigDir(),
 		configService,
 		platformSvc,
+		true,  // Enable test mode for testing
+		true,  // Enable isolation for test environment
+		true,  // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(configService.GetConfigDir())
 	projectSvc := project.NewService(configService, envService, pkgSvc)
-	backupSvc := backup.NewService(configService, envService, projectSvc)
+
+	// Use asService helper function here as well
+	backupSvc := backup.NewService(configService, envService, asService(projectSvc))
 
 	t.Run("restore backup", func(t *testing.T) {
 		// First create a backup to restore

@@ -25,10 +25,13 @@ func TestIsolationSetupWithMocks(t *testing.T) {
 		tempDir,
 		cfgSvc,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("test mode skips isolation", func(t *testing.T) {
-		err := svc.SetupIsolation(true)
+		err := svc.SetupIsolation(true, false)
 		assert.NoError(t, err, "SetupIsolation should succeed in test mode")
 
 		// Verify that no directories were created in test mode
@@ -37,7 +40,7 @@ func TestIsolationSetupWithMocks(t *testing.T) {
 	})
 
 	t.Run("creates directory structure", func(t *testing.T) {
-		err := svc.SetupIsolation(false)
+		err := svc.SetupIsolation(false, false)
 		require.NoError(t, err, "SetupIsolation should succeed")
 
 		// Verify directory structure

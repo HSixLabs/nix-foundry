@@ -17,6 +17,11 @@ import (
 // Define maxBackups constant
 const maxBackups = 10
 
+// Add type conversion for the test
+func asService(ps project.ProjectService) project.Service {
+	return ps.(project.Service)
+}
+
 func TestBackupService(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "nix-foundry-test-*")
@@ -45,11 +50,11 @@ func TestBackupService(t *testing.T) {
 	// Create service dependencies
 	configSvc := config.NewService()
 	platformSvc := platform.NewService()
-	envSvc := environment.NewService(tempDir, configSvc, platformSvc)
+	envSvc := environment.NewService(tempDir, configSvc, platformSvc, true, true, true)
 	projectSvc := project.NewService(configSvc, envSvc, nil)
 
 	t.Run("CreateAndListBackups", func(t *testing.T) {
-		svc := backup.NewService(configSvc, envSvc, projectSvc)
+		svc := backup.NewService(configSvc, envSvc, asService(projectSvc))
 
 		// Create a backup
 		if err := svc.Create("test-backup", false); err != nil {
@@ -68,7 +73,7 @@ func TestBackupService(t *testing.T) {
 	})
 
 	t.Run("RestoreBackup", func(t *testing.T) {
-		svc := backup.NewService(configSvc, envSvc, projectSvc)
+		svc := backup.NewService(configSvc, envSvc, asService(projectSvc))
 
 		// Create and modify test files
 		modifiedContent := "modified content"
@@ -93,7 +98,7 @@ func TestBackupService(t *testing.T) {
 	})
 
 	t.Run("DeleteBackup", func(t *testing.T) {
-		svc := backup.NewService(configSvc, envSvc, projectSvc)
+		svc := backup.NewService(configSvc, envSvc, asService(projectSvc))
 
 		// Delete the backup
 		if err := svc.Delete("test-backup"); err != nil {
@@ -112,7 +117,7 @@ func TestBackupService(t *testing.T) {
 	})
 
 	t.Run("RotateBackups", func(t *testing.T) {
-		svc := backup.NewService(configSvc, envSvc, projectSvc)
+		svc := backup.NewService(configSvc, envSvc, asService(projectSvc))
 
 		// Create more than maxBackups backups
 		for i := 0; i < maxBackups+5; i++ {

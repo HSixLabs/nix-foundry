@@ -33,6 +33,9 @@ func NewProjectInitCommand() *cobra.Command {
 				cfgSvc.GetConfigDir(),
 				cfgSvc,
 				platformSvc,
+				false,
+				true,
+				true,
 			)
 
 			pkgSvc := packages.NewService(cfgSvc.GetConfigDir())

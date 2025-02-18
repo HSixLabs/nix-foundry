@@ -23,7 +23,12 @@ func (s *Service) Create(name string, packages []string, force bool) error {
 
 	if !force {
 		if _, err := os.Stat(path); err == nil {
-			return errors.NewConflictError(nil, "profile already exists, use --force to overwrite")
+			return errors.NewConflictError(
+				"profile_config",
+				nil,
+				"profile configuration validation failed",
+				"Create profile configuration first",
+			)
 		}
 	}
 

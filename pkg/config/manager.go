@@ -210,38 +210,14 @@ func (cm *Manager) MergeProjectConfigs(base, overlay ProjectConfig) ProjectConfi
 	result := overlay
 
 	// Merge required packages
-	seen := make(map[string]bool)
-	var required []string
+	result.Required = cm.mergeLists(base.Required, overlay.Required)
 
-	for _, pkg := range base.Required {
-		if !seen[pkg] {
-			seen[pkg] = true
-			required = append(required, pkg)
-		}
-	}
-
-	for _, pkg := range overlay.Required {
-		if !seen[pkg] {
-			seen[pkg] = true
-			required = append(required, pkg)
-		}
-	}
-
-	result.Required = required
-
-	// Merge tools
-	result.Tools.Go = cm.mergeLists(base.Tools.Go, overlay.Tools.Go)
-	result.Tools.Node = cm.mergeLists(base.Tools.Node, overlay.Tools.Node)
-	result.Tools.Python = cm.mergeLists(base.Tools.Python, overlay.Tools.Python)
+	// Merge tools as simple string slice
+	result.Tools = cm.mergeLists(base.Tools, overlay.Tools)
 
 	// Merge environment variables
-	if result.Environment == nil {
-		result.Environment = make(map[string]string)
-	}
-	for k, v := range base.Environment {
-		if _, exists := result.Environment[k]; !exists {
-			result.Environment[k] = v
-		}
+	if result.Environment == "" {
+		result.Environment = base.Environment
 	}
 
 	return result
@@ -501,14 +477,37 @@ func (m *Manager) Load() error {
 }
 
 func (m *Manager) Save() error {
+	// Normalize path before any operations
+	m.configPath = filepath.Clean(m.configPath)
+
+	// Ensure we're always writing to a file, not directory
+	if filepath.Base(m.configPath) != "config.yaml" {
+		m.configPath = filepath.Join(m.configPath, "config.yaml")
+	}
+
+	// Create atomic writer
+	tempPath := m.configPath + ".tmp"
+
 	data, err := yaml.Marshal(m.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.MkdirAll(m.configDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(m.configPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
 
-	return os.WriteFile(m.configPath, data, 0644)
+	// Write to temp file
+	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+		os.Remove(tempPath) // Clean up failed write
+		return fmt.Errorf("temp file write failed: %w", err)
+	}
+
+	// Atomic rename to final path
+	if err := os.Rename(tempPath, m.configPath); err != nil {
+		os.Remove(tempPath) // Clean up failed rename
+		return fmt.Errorf("atomic replace failed: %w", err)
+	}
+
+	return nil
 }

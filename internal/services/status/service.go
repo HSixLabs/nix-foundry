@@ -31,10 +31,13 @@ func (s *Service) CheckEnvironment() (EnvironmentStatus, error) {
 		s.logger.Warn("Failed to get current environment", "error", err)
 		currentEnv = "unknown"
 	}
+
+	healthErr := s.environmentSvc.CheckHealth()
+
 	status := EnvironmentStatus{
 		Active:    currentEnv,
 		Packages:  s.getPackagesFromConfig(),
-		Health:    s.environmentSvc.CheckHealth(),
+		Health:    healthErr,
 		LastApply: s.getLastApplyTime(),
 	}
 	return status, nil
@@ -52,7 +55,7 @@ func (s *Service) CheckSystem() (SystemStatus, error) {
 type EnvironmentStatus struct {
 	Active    string
 	Packages  []string
-	Health    string
+	Health    error
 	LastApply time.Time
 }
 
@@ -86,7 +89,7 @@ func checkServices() map[string]string {
 func (s *Service) getPackagesFromConfig() []string {
 	var projectCfg project.Config
 	if err := s.configSvc.LoadSection("project", &projectCfg); err == nil {
-		return projectCfg.Dependencies
+		return projectCfg.Project.Dependencies
 	}
 	return []string{}
 }

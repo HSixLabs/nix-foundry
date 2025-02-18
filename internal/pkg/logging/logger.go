@@ -2,7 +2,6 @@ package logging
 
 import (
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 var defaultLogger *zap.SugaredLogger
@@ -13,23 +12,16 @@ type Logger struct {
 }
 
 // InitLogger initializes the global logger with the specified log level
-func InitLogger(level string) error {
-	config := zap.NewProductionConfig()
+func InitLogger(debug bool) error {
+	var config zap.Config
 
-	// Parse log level
-	var zapLevel zapcore.Level
-	if err := zapLevel.UnmarshalText([]byte(level)); err != nil {
-		return err
-	}
-	config.Level = zap.NewAtomicLevelAt(zapLevel)
-
-	// Enable development mode for debug level
-	if level == "debug" {
+	if debug {
 		config = zap.NewDevelopmentConfig()
+		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	} else {
+		config = zap.NewProductionConfig()
+		config.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
 	}
-
-	// Configure output paths
-	config.OutputPaths = []string{"stdout", "nix-foundry.log"}
 
 	logger, err := config.Build()
 	if err != nil {
@@ -58,4 +50,14 @@ func (l *Logger) WithError(err error) *Logger {
 // WithField adds a field to the logger
 func (l *Logger) WithField(key string, value interface{}) *Logger {
 	return &Logger{l.SugaredLogger.With(key, value)}
+}
+
+// Add component logger support to logging package
+func NewComponentLogger(component string) *Logger {
+	return GetLogger().WithField("component", component)
+}
+
+// Add WithComponent method to Logger
+func (l *Logger) WithComponent(component string) *Logger {
+	return l.WithField("component", component)
 }

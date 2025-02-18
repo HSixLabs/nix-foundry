@@ -26,6 +26,9 @@ func NewEnvironmentCommand() *cobra.Command {
 				cfgSvc.GetConfigDir(),
 				cfgSvc,
 				platformSvc,
+				false, // Add test mode flag (false for status command)
+				true,  // Enable environment isolation
+				true,  // Enable auto-install
 			)
 
 			svc := status.NewService(cfgSvc, envSvc)

@@ -65,4 +65,24 @@ func (m *MockPlatformService) GetPlatformType() string {
 	return args.String(0)
 }
 
+func (m *MockPlatformService) IsHomeManagerInstalled() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *MockPlatformService) InstallNix() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockPlatformService) IsNixInstalled() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *MockPlatformService) Validate() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
 var _ platform.Service = (*MockPlatformService)(nil)

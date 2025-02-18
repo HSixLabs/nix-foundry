@@ -9,20 +9,17 @@ var (
 	ValidShells     = []string{"zsh", "bash", "fish"}
 	ValidAutoShells = []string{"zsh", "bash"}
 	ValidEditors    = []string{"nano", "vim", "nvim", "emacs", "neovim", "vscode", "code"}
-	editorAliases   = map[string]string{
-		"code": "vscode",
-	}
 )
 
-type Validator struct {
+type ConfigValidator struct {
 	config *NixConfig
 }
 
-func NewValidator(config *NixConfig) *Validator {
-	return &Validator{config: config}
+func NewValidator(config *NixConfig) *ConfigValidator {
+	return &ConfigValidator{config: config}
 }
 
-func (v *Validator) ValidateConfig() error {
+func (v *ConfigValidator) ValidateConfig() error {
 	if v.config.Version == "" {
 		return fmt.Errorf("version is required")
 	}
@@ -45,7 +42,7 @@ func (v *Validator) ValidateConfig() error {
 }
 
 // Keep core validation methods here
-func (v *Validator) validateShell() error {
+func (v *ConfigValidator) validateShell() error {
 	if v.config.Shell.Type == "" {
 		return fmt.Errorf("shell type is required")
 	}
@@ -55,7 +52,7 @@ func (v *Validator) validateShell() error {
 	return nil
 }
 
-func (v *Validator) validateEditor() error {
+func (v *ConfigValidator) validateEditor() error {
 	if v.config.Editor.Type == "" {
 		return fmt.Errorf("editor type is required")
 	}
@@ -81,7 +78,7 @@ func ValidateEditor(editor string) error {
 	return fmt.Errorf("invalid editor '%s'", editor)
 }
 
-func (v *Validator) ValidateConflicts(other *NixConfig) error {
+func (v *ConfigValidator) ValidateConflicts(other *NixConfig) error {
 	var conflicts []string
 
 	// Check shell conflicts
@@ -119,7 +116,7 @@ func ValidateAutoShell(shell string) error {
 	return nil
 }
 
-func (v *Validator) validatePackages() error {
+func (v *ConfigValidator) validatePackages() error {
 	seen := make(map[string]bool)
 
 	for _, pkg := range v.config.Packages.Additional {
@@ -144,7 +141,7 @@ func (v *Validator) validatePackages() error {
 	return nil
 }
 
-func (v *Validator) validateGit() error {
+func (v *ConfigValidator) validateGit() error {
 	if v.config.Git.Enable {
 		if v.config.Git.User.Name == "" {
 			return fmt.Errorf("git user name is required when git is enabled")
@@ -156,7 +153,7 @@ func (v *Validator) validateGit() error {
 	return nil
 }
 
-func (v *Validator) validateTeam() error {
+func (v *ConfigValidator) validateTeam() error {
 	if v.config.Team.Enable {
 		if v.config.Team.Name == "" {
 			return fmt.Errorf("team name is required when team is enabled")

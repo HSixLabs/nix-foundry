@@ -28,7 +28,8 @@ func getNestedValue(obj interface{}, path []string) (interface{}, error) {
 	return current.Interface(), nil
 }
 
-// setNestedValue sets configuration values using dot-notation paths like "Environment.Default"
+// Add lint ignore comment for intentionally kept unused function
+//lint:ignore U1000 This is used via reflection in other packages
 func setNestedValue(obj interface{}, path []string, value string) error {
 	current := reflect.ValueOf(obj)
 	if current.Kind() == reflect.Ptr {

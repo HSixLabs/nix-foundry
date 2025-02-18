@@ -1,0 +1,11 @@
+shell:
+    type: ""
+editor:
+    type: ""
+git:
+    name: ""
+    email: ""
+packages:
+    core: []
+    user: []
+    team: []

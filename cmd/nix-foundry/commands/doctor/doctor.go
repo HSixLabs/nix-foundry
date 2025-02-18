@@ -20,8 +20,9 @@ func NewDoctorCommand(projectSvc project.Service) *cobra.Command {
 			spin := progress.NewSpinner("Running system diagnostics...")
 			spin.Start()
 
-			// Run all health checks
-			systemChecks := health.RunSystemChecks()
+			// Create system checker and run checks
+			systemChecker := &health.SystemChecker{}
+			systemChecks := systemChecker.RunChecks()
 			configChecks := health.NewConfigChecker(projectSvc).AuditConfigs()
 
 			spin.Stop()

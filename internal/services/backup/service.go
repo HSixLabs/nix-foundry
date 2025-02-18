@@ -14,6 +14,7 @@ import (
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
 	config "github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
@@ -74,6 +75,7 @@ type ServiceImpl struct {
 	logger        *logging.Logger
 	backupDir     string
 	configDir     string
+	config        *types.Config
 }
 
 // NewService creates a new backup service
@@ -297,39 +299,53 @@ func (s *ServiceImpl) createArchive(sourcePath, destPath string) error {
 // Add these methods to ServiceImpl
 func (s *ServiceImpl) GetConfig() Config {
 	return Config{
-		RetentionDays:    s.configManager.GetRetentionDays(),
-		MaxBackups:       s.configManager.GetMaxBackups(),
-		CompressionLevel: s.configManager.GetCompressionLevel(),
+		RetentionDays:    s.config.Backup.RetentionDays,
+		MaxBackups:       s.config.Backup.MaxBackups,
+		CompressionLevel: s.config.Backup.CompressionLevel,
 	}
 }
 
 func (s *ServiceImpl) UpdateConfig(config Config) error {
-	// Implementation that updates the configuration
-	s.configManager.SetRetentionDays(config.RetentionDays)
-	s.configManager.SetMaxBackups(config.MaxBackups)
-	s.configManager.SetCompressionLevel(config.CompressionLevel)
-	return s.configManager.Save()
+	if s.config == nil {
+		if err := s.LoadConfig(); err != nil {
+			return err
+		}
+	}
+
+	// Update the stored config
+	s.config.Backup.RetentionDays = config.RetentionDays
+	s.config.Backup.MaxBackups = config.MaxBackups
+	s.config.Backup.CompressionLevel = config.CompressionLevel
+
+	return s.configManager.Save(s.config)
 }
 
-// Rename the key-based update method
+// Update the UpdateConfigKey method similarly
 func (s *ServiceImpl) UpdateConfigKey(key string, value interface{}) error {
+	if s.config == nil {
+		if err := s.LoadConfig(); err != nil {
+			return err
+		}
+	}
+
 	switch key {
 	case "retention":
 		if v, ok := value.(int); ok {
-			s.configManager.SetRetentionDays(v)
+			s.config.Backup.RetentionDays = v
 		}
 	case "max-backups":
 		if v, ok := value.(int); ok {
-			s.configManager.SetMaxBackups(v)
+			s.config.Backup.MaxBackups = v
 		}
 	case "compression":
 		if v, ok := value.(int); ok {
-			s.configManager.SetCompressionLevel(v)
+			s.config.Backup.CompressionLevel = v
 		}
 	default:
 		return fmt.Errorf("invalid config key: %s", key)
 	}
-	return s.configManager.Save()
+
+	return s.configManager.Save(s.config)
 }
 
 // Update ServiceImpl to implement new restore methods
@@ -417,5 +433,24 @@ func (s *ServiceImpl) Restore(name string, force bool) error {
 	if !force {
 		return os.RemoveAll(currentEnv + ".old")
 	}
+	return nil
+}
+
+func (s *ServiceImpl) backupConfig() error {
+	if s.config == nil {
+		if err := s.LoadConfig(); err != nil {
+			return err
+		}
+	}
+	return s.configManager.Save(s.config)
+}
+
+// Add LoadConfig method to initialize the config
+func (s *ServiceImpl) LoadConfig() error {
+	cfg, err := s.configManager.Load()
+	if err != nil {
+		return err
+	}
+	s.config = cfg
 	return nil
 }

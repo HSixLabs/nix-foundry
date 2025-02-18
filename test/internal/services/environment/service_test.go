@@ -22,6 +22,9 @@ func TestNewService(t *testing.T) {
 		tmpDir,
 		cfgSvc,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	assert.NotNil(t, svc, "Service should not be nil")
@@ -36,6 +39,9 @@ func TestEnvironmentOperations(t *testing.T) {
 		tmpDir,
 		cfgSvc,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("initialization", func(t *testing.T) {
@@ -112,6 +118,9 @@ func TestCheckPrerequisites(t *testing.T) {
 		"/test/config/dir",
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("test mode", func(t *testing.T) {
@@ -131,6 +140,9 @@ func TestSetupEnvironmentSymlink(t *testing.T) {
 		tmpDir,
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	// Create required directories
@@ -164,6 +176,9 @@ func TestInitialize(t *testing.T) {
 		tmpDir,
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("successful initialization", func(t *testing.T) {
@@ -203,6 +218,9 @@ func TestInitialize(t *testing.T) {
 			readOnlyDir,
 			config.NewService(),
 			platformSvc,
+			true,
+			true,
+			true,
 		)
 
 		err := svc.Initialize(true)
@@ -216,16 +234,19 @@ func TestInitialize(t *testing.T) {
 func TestSetupIsolation(t *testing.T) {
 	tmpDir := t.TempDir()
 	platformSvc := &mocks.MockPlatformService{}
-	platformSvc.On("SetupIsolation", true).Return(nil)
+	platformSvc.On("SetupIsolation", true, true).Return(nil)
 
 	svc := environment.NewService(
 		tmpDir,
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("test mode", func(t *testing.T) {
-		if err := svc.SetupIsolation(true); err != nil {
+		if err := svc.SetupIsolation(true, false); err != nil {
 			t.Errorf("Expected no error in test mode, got %v", err)
 		}
 
@@ -252,6 +273,9 @@ func TestInitializeNixFlake(t *testing.T) {
 		tmpDir,
 		cfgSvc,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("create new files", func(t *testing.T) {
@@ -318,6 +342,9 @@ func TestEnableFlakeFeatures(t *testing.T) {
 		"/test/config",
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	t.Run("enable flake features", func(t *testing.T) {
@@ -347,6 +374,9 @@ func TestGetCurrentEnvironment(t *testing.T) {
 		tmpDir,
 		config.NewService(),
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	env, err := svc.GetCurrentEnvironment()

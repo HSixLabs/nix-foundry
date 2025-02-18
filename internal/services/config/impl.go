@@ -2,30 +2,14 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
-	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
 )
 
-func (s *ServiceImpl) GetValue(key string) (interface{}, error) {
-	if err := s.Load(); err != nil {
-		return nil, err
-	}
-
-	value, err := getNestedValue(s.config, strings.Split(key, "."))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get value: %w", err)
-	}
-
-	return value, nil
-}
-
 func (s *ServiceImpl) SetValue(key string, value interface{}) error {
-	if err := s.Load(); err != nil {
+	if _, err := s.Load(); err != nil {
 		return err
 	}
 
@@ -35,7 +19,7 @@ func (s *ServiceImpl) SetValue(key string, value interface{}) error {
 func (s *ServiceImpl) Reset(section string) error {
 	if section == "" {
 		s.config = NewDefaultConfig()
-		return s.Save()
+		return s.Save(s.config)
 	}
 
 	defaultConfig := NewDefaultConfig()
@@ -50,61 +34,44 @@ func (s *ServiceImpl) Reset(section string) error {
 	}
 
 	configValue.Set(defaultValue)
-	return s.Save()
+	return s.Save(s.config)
+}
+
+func (s *ServiceImpl) ValidateConfig(cfg *types.Config) error {
+	if cfg.Project.Name == "" {
+		return fmt.Errorf("project name required")
+	}
+	return nil
 }
 
 func (s *ServiceImpl) Validate() error {
 	if s.config == nil {
-		return fmt.Errorf("configuration is nil")
-	}
-
-	// Validate backup settings
-	if err := s.config.Backup.Validate(); err != nil {
-		return fmt.Errorf("backup configuration invalid: %w", err)
-	}
-
-	// Validate environment settings
-	if err := s.config.Environment.Validate(); err != nil {
-		return fmt.Errorf("environment configuration invalid: %w", err)
-	}
-
-	return nil
-}
-
-func (s *ServiceImpl) Load() error {
-	data, err := os.ReadFile(s.path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			s.config = NewDefaultConfig()
-			return nil
+		if _, err := s.Load(); err != nil {
+			return fmt.Errorf("failed to load configuration: %w", err)
 		}
-		return fmt.Errorf("failed to read config file: %w", err)
 	}
-
-	if err := yaml.Unmarshal(data, &s.config); err != nil {
-		return fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	return nil
+	return s.ValidateConfig(s.config)
 }
 
-func (s *ServiceImpl) Save() error {
-	s.config.LastUpdated = time.Now()
-
-	data, err := yaml.Marshal(s.config)
+func (s *ServiceImpl) Load() (*types.Config, error) {
+	cfg, err := s.manager.Load()
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return nil, err
 	}
+	s.config = cfg
+	return cfg, nil
+}
 
-	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+func (s *ServiceImpl) Save(cfg *types.Config) error {
+	return s.manager.Save(cfg)
+}
+
+func (s *ServiceImpl) SaveConfig(cfg *types.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
 	}
-
-	if err := os.WriteFile(s.path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	return nil
+	s.config = cfg
+	return s.manager.Save(cfg)
 }
 
 func (s *ServiceImpl) GetConfigDir() string {
@@ -116,7 +83,7 @@ func (s *ServiceImpl) GetBackupDir() string {
 }
 
 func (s *ServiceImpl) LoadSection(name string, v interface{}) error {
-	if err := s.Load(); err != nil {
+	if _, err := s.Load(); err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
@@ -131,4 +98,8 @@ func (s *ServiceImpl) LoadSection(name string, v interface{}) error {
 	targetValue.Set(sectionValue)
 
 	return nil
+}
+
+func (s *ServiceImpl) GetManager() *Manager {
+	return s.manager
 }

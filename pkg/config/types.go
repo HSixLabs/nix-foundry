@@ -1,5 +1,9 @@
 package config
 
+import (
+	"fmt"
+)
+
 // Single source for all type declarations
 type Type string
 
@@ -16,16 +20,41 @@ type BaseConfig struct {
 	Name    string `yaml:"name,omitempty"`
 }
 
+// Validator defines the interface for configuration validation
+type Validator interface {
+	Validate() error
+}
+
 // ProjectConfig represents project-specific configuration
 type ProjectConfig struct {
 	BaseConfig `yaml:",inline"`
-	Required   []string `yaml:"required,omitempty"`
-	Tools      struct {
-		Go     []string `yaml:"go,omitempty"`
-		Node   []string `yaml:"node,omitempty"`
-		Python []string `yaml:"python,omitempty"`
-	} `yaml:"tools,omitempty"`
-	Environment map[string]string `yaml:"environment,omitempty"`
+	Version    string              `yaml:"version"`
+	Name       string              `yaml:"name"`
+	Environment string              `yaml:"environment"`
+	Dependencies []string            `yaml:"dependencies"`
+	Required     []string           `yaml:"required,omitempty"`
+	Settings     map[string]string  `yaml:"settings,omitempty"`
+	Tools        []string           `yaml:"tools,omitempty"`
+}
+
+// Validate implements the Validator interface
+func (p *ProjectConfig) Validate() error {
+	if err := p.validateVersion(); err != nil {
+		return fmt.Errorf("version validation failed: %w", err)
+	}
+	if err := p.validateName(); err != nil {
+		return fmt.Errorf("name validation failed: %w", err)
+	}
+	if err := p.validateEnvironment(); err != nil {
+		return fmt.Errorf("environment validation failed: %w", err)
+	}
+	if err := p.validateSettings(); err != nil {
+		return fmt.Errorf("settings validation failed: %w", err)
+	}
+	if err := p.validateDependencies(); err != nil {
+		return fmt.Errorf("dependencies validation failed: %w", err)
+	}
+	return nil
 }
 
 // ConfigPaths stores standard configuration paths

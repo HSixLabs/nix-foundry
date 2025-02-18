@@ -31,6 +31,9 @@ func TestEnvironmentIntegration(t *testing.T) {
 			configDir,
 			cfgSvc,
 			platformSvc,
+			true,
+			true,
+			true,
 		)
 
 		// Test initialization
@@ -69,6 +72,9 @@ func TestEnvironmentIntegration(t *testing.T) {
 			configDir,
 			cfgSvc,
 			platformSvc,
+			true,
+			true,
+			true,
 		)
 
 		// Test with test mode enabled

@@ -69,7 +69,7 @@ func (c *ConfigChecker) checkEnvironmentConfig() CheckResult {
 	}
 
 	// Check environment isolation directory exists
-	envPath := filepath.Join(c.projectSvc.GetConfigDir(), "environments", config.Environment)
+	envPath := filepath.Join(c.projectSvc.GetConfigDir(), "environments", config.Project.Environment)
 	_, err := os.Stat(envPath)
 
 	if os.IsNotExist(err) {

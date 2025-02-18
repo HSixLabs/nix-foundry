@@ -1,14 +1,16 @@
 package project
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
+	configtypes "github.com/shawnkhoffman/nix-foundry/internal/services/config/types"
 )
 
 // ValidateConfig validates a project configuration
-func ValidateConfig(cfg *project.Config) error {
-	if err := validateVersion(cfg); err != nil {
+func ValidateConfig(cfg *configtypes.Config) error {
+	if err := validateVersion(cfg.Project.Version); err != nil {
 		return fmt.Errorf("invalid version: %w", err)
 	}
 
@@ -31,7 +33,26 @@ func ValidateConfig(cfg *project.Config) error {
 	return nil
 }
 
-func validateVersion(cfg *project.Config) error {
+func Validate(cfg *configtypes.Config) error {
+	if err := validateVersion(cfg.Project.Version); err != nil {
+		return fmt.Errorf("invalid version: %w", err)
+	}
+	if err := validateName(cfg); err != nil {
+		return fmt.Errorf("invalid name: %w", err)
+	}
+	if err := validateEnvironment(cfg); err != nil {
+		return fmt.Errorf("invalid environment: %w", err)
+	}
+	if err := validateSettings(cfg); err != nil {
+		return fmt.Errorf("invalid settings: %w", err)
+	}
+	if err := validateDependencies(cfg); err != nil {
+		return fmt.Errorf("invalid dependencies: %w", err)
+	}
+	return nil
+}
+
+func ValidateProjectConfig(cfg *types.ProjectConfig) error {
 	if cfg.Version == "" {
 		return fmt.Errorf("version is required")
 	}
@@ -44,55 +65,68 @@ func validateVersion(cfg *project.Config) error {
 	return fmt.Errorf("unsupported version: %s", cfg.Version)
 }
 
-func validateName(cfg *project.Config) error {
-	if cfg.Name == "" {
+func validateName(cfg *configtypes.Config) error {
+	if cfg.Project.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-	if len(cfg.Name) > 50 {
+	if len(cfg.Project.Name) > 50 {
 		return fmt.Errorf("name exceeds maximum length of 50 characters")
 	}
 	return nil
 }
 
-func validateEnvironment(cfg *project.Config) error {
-	if cfg.Environment == "" {
+func validateEnvironment(cfg *configtypes.Config) error {
+	if cfg.Project.Environment == "" {
 		return fmt.Errorf("environment is required")
 	}
 	validEnvs := []string{"development", "staging", "production"}
 	for _, env := range validEnvs {
-		if cfg.Environment == env {
+		if cfg.Project.Environment == env {
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid environment: %s", cfg.Environment)
+	return fmt.Errorf("invalid environment: %s", cfg.Project.Environment)
 }
 
-func validateSettings(cfg *project.Config) error {
-	if cfg.Settings.LogLevel == "" {
+func validateSettings(cfg *configtypes.Config) error {
+	logLevel, exists := cfg.Project.Settings["logLevel"]
+	if !exists || logLevel == "" {
 		return fmt.Errorf("log level is required")
 	}
+
 	validLevels := []string{"debug", "info", "warn", "error"}
 	validLevel := false
 	for _, level := range validLevels {
-		if cfg.Settings.LogLevel == level {
+		if logLevel == level {
 			validLevel = true
 			break
 		}
 	}
 	if !validLevel {
-		return fmt.Errorf("invalid log level: %s", cfg.Settings.LogLevel)
+		return fmt.Errorf("invalid log level: %s", logLevel)
 	}
 	return nil
 }
 
-func validateDependencies(cfg *project.Config) error {
+func validateDependencies(cfg *configtypes.Config) error {
 	seen := make(map[string]bool)
-	for _, dep := range cfg.Dependencies {
+	for _, dep := range cfg.Project.Dependencies {
 		if seen[dep] {
 			return fmt.Errorf("duplicate dependency: %s", dep)
 		}
 		seen[dep] = true
 	}
+	return nil
+}
+
+func validateVersion(version string) error {
+	if version == "" {
+		return errors.New("version is required")
+	}
+
+	// if !semver.IsValid(version) {
+	// 	return fmt.Errorf("invalid semantic version format: %s", version)
+	// }
 	return nil
 }
 

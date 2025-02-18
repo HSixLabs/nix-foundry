@@ -47,8 +47,14 @@ pkgs.mkShell {
     mkdir -p .go
 
     # Install pre-commit hooks if not already installed
-    if [ ! -f .git/hooks/pre-commit ]; then
-      pre-commit install
+    if [ -d .git/hooks ]; then
+      # Remove any existing hooks
+      rm -f .git/hooks/pre-commit
+      rm -f .git/hooks/commit-msg
     fi
+
+    # Install all hooks
+    pre-commit install --install-hooks
+    pre-commit install --hook-type commit-msg
   '';
 }

@@ -30,6 +30,9 @@ func TestUpdateIntegration(t *testing.T) {
 		configDir,
 		configService,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 
 	// Create update service with dependencies

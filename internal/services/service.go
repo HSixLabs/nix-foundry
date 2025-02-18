@@ -1,9 +1,12 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/project"
 )
@@ -28,12 +31,10 @@ func (s *ConfigurationService) InitializeProject(projectName, teamName string, f
 		return fmt.Errorf("project configuration already exists. Use --force to override")
 	}
 
-	projectCfg := config.ProjectConfig{
-		BaseConfig: config.BaseConfig{
-			Type:    config.ProjectType,
-			Version: "1.0",
-			Name:    projectName,
-		},
+	// Create base project config using types.ProjectConfig
+	projectCfg := types.ProjectConfig{
+		Version: "1.0",
+		Name:    projectName,
 		Required: []string{"git"},
 	}
 
@@ -42,13 +43,18 @@ func (s *ConfigurationService) InitializeProject(projectName, teamName string, f
 		if err != nil {
 			return fmt.Errorf("failed to load team configuration: %w", err)
 		}
-		teamProjectConfig, ok := teamConfig.(config.ProjectConfig)
+
+		// Convert team config to correct type
+		teamProjectConfig, ok := teamConfig.(types.ProjectConfig)
 		if !ok {
 			return fmt.Errorf("invalid team configuration type")
 		}
+
+		// Merge configs using the correct types
 		projectCfg = s.configManager.MergeProjectConfigs(projectCfg, teamProjectConfig)
 	}
 
+	// Write the config using the merged project config
 	if err := s.configManager.WriteConfig(".nix-foundry.yaml", projectCfg); err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
@@ -78,72 +84,86 @@ type PackageService struct {
 // NewPackageService creates a new package service
 func NewPackageService() (*PackageService, error) {
 	manager := config.NewService()
-
 	return &PackageService{
 		configManager: manager,
 	}, nil
 }
 
 // ListCustomPackages returns the list of custom packages
-func (s *PackageService) ListCustomPackages() ([]string, error) {
-	return s.configManager.LoadCustomPackages()
+func (s *PackageService) ListCustomPackages(ctx context.Context) ([]string, error) {
+	cfg, err := s.configManager.Load()
+	if err != nil {
+		return nil, err
+	}
+	return append(cfg.Packages.User, cfg.Packages.Team...), nil
 }
 
 // AddPackages adds new packages to the configuration
-func (s *PackageService) AddPackages(packages []string) error {
-	existing, err := s.configManager.LoadCustomPackages()
+func (s *PackageService) AddPackages(ctx context.Context, packages []string) error {
+	cfg, err := s.configManager.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load existing packages: %w", err)
+		return err
 	}
 
-	// Create a map to deduplicate packages
-	packageMap := make(map[string]bool)
-	for _, pkg := range existing {
-		packageMap[pkg] = true
+	existing := make(map[string]bool)
+	for _, pkg := range cfg.Packages.User {
+		existing[pkg] = true
 	}
+
+	var added []string
 	for _, pkg := range packages {
-		packageMap[pkg] = true
+		if !existing[pkg] {
+			cfg.Packages.User = append(cfg.Packages.User, pkg)
+			added = append(added, pkg)
+		}
 	}
 
-	// Convert back to slice
-	var finalPackages []string
-	for pkg := range packageMap {
-		finalPackages = append(finalPackages, pkg)
+	if len(added) > 0 {
+		// Create a new config with only the necessary fields
+		configToSave := &types.Config{
+			LastUpdated: time.Now(),
+			Packages:    cfg.Packages,
+			Project:     cfg.Project,
+			NixConfig:   cfg.NixConfig,
+			Settings:    cfg.Settings,
+			Environment: cfg.Environment,
+		}
+		return s.configManager.Save(configToSave)
 	}
-
-	if err := s.configManager.SaveCustomPackages(finalPackages); err != nil {
-		return fmt.Errorf("failed to save packages: %w", err)
-	}
-
 	return nil
 }
 
 // RemovePackages removes packages from the configuration
-func (s *PackageService) RemovePackages(packages []string) error {
-	existing, err := s.configManager.LoadCustomPackages()
+func (s *PackageService) RemovePackages(ctx context.Context, packages []string) error {
+	cfg, err := s.configManager.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load existing packages: %w", err)
+		return err
 	}
 
-	// Create a map of packages to remove
-	toRemove := make(map[string]bool)
+	packageMap := make(map[string]bool)
 	for _, pkg := range packages {
-		toRemove[pkg] = true
+		packageMap[pkg] = true
 	}
 
-	// Filter out removed packages
-	var remaining []string
-	for _, pkg := range existing {
-		if !toRemove[pkg] {
-			remaining = append(remaining, pkg)
+	var filtered []string
+	for _, pkg := range cfg.Packages.User {
+		if !packageMap[pkg] {
+			filtered = append(filtered, pkg)
 		}
 	}
 
-	if err := s.configManager.SaveCustomPackages(remaining); err != nil {
-		return fmt.Errorf("failed to save packages: %w", err)
-	}
+	cfg.Packages.User = filtered
 
-	return nil
+	// Create a new config with only the necessary fields
+	configToSave := &types.Config{
+		LastUpdated: time.Now(),
+		Packages:    cfg.Packages,
+		Project:     cfg.Project,
+		NixConfig:   cfg.NixConfig,
+		Settings:    cfg.Settings,
+		Environment: cfg.Environment,
+	}
+	return s.configManager.Save(configToSave)
 }
 
 // Add service-layer functionality
@@ -190,4 +210,57 @@ func (s *ConfigurationService) LoadTeamConfig(name string) (*config.TeamConfig, 
 	}
 
 	return teamCfg, nil
+}
+
+type ServiceImpl struct {
+	configManager config.Service
+	// ... other fields
+}
+
+// Update the conversion helper to properly map all fields
+func convertConfig(cfg *config.Config) *types.Config {
+	if cfg == nil {
+		return nil
+	}
+
+	return &types.Config{
+		LastUpdated: time.Now(),
+		NixConfig:   &types.NixConfig{
+			Version:     cfg.NixConfig.Version,
+			Settings:    cfg.NixConfig.Settings,
+			Shell:       cfg.NixConfig.Shell,
+			Editor:      cfg.NixConfig.Editor,
+			Git:         cfg.NixConfig.Git,
+			Packages:    cfg.NixConfig.Packages,
+			Team:        cfg.NixConfig.Team,
+			Platform:    cfg.NixConfig.Platform,
+			Development: cfg.NixConfig.Development,
+		},
+		Project:     cfg.Project,
+		Packages:    cfg.NixConfig.Packages,
+		Settings:    types.Settings{
+			AutoUpdate:     cfg.NixConfig.Settings.AutoUpdate,
+			UpdateInterval: cfg.NixConfig.Settings.UpdateInterval,
+			LogLevel:       cfg.NixConfig.Settings.LogLevel,
+		},
+		Environment: types.EnvironmentSettings{
+			// Map the environment settings fields as needed
+			// Add the appropriate fields based on your EnvironmentSettings struct
+		},
+		Shell:       cfg.NixConfig.Shell,
+		Editor:      cfg.NixConfig.Editor,
+		Git:         cfg.NixConfig.Git,
+		Dependencies: cfg.Project.Dependencies,
+	}
+}
+
+// Update the ServiceImpl methods to use the proper types
+func (s *ServiceImpl) Save(cfg *config.Config) error {
+	converted := convertConfig(cfg)
+	return s.configManager.Save(converted)
+}
+
+func (s *ServiceImpl) SaveConfig(cfg *config.Config) error {
+	converted := convertConfig(cfg)
+	return s.configManager.Save(converted)
 }

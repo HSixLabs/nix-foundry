@@ -34,6 +34,9 @@ Example:
 				configSvc.GetConfigDir(),
 				configSvc,
 				platformSvc,
+				testMode,
+				true,
+				true,
 			)
 
 			// Update flake inputs

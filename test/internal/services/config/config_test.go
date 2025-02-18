@@ -5,30 +5,42 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 )
+
+var testConfig = &types.Config{
+	Version: "1.0",
+	NixConfig: &types.NixConfig{
+		Version: "1.0",
+	},
+	Settings: types.Settings{
+		AutoUpdate: true,
+		LogLevel:   "info",
+	},
+}
 
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  config.Config
+		config  types.Config
 		wantErr bool
 	}{
 		{
 			name: "valid config",
-			config: config.Config{
+			config: types.Config{
 				Version: "1.0",
-				Settings: config.Settings{
+				Settings: types.Settings{
 					LogLevel:       "info",
 					AutoUpdate:     true,
 					UpdateInterval: "24h",
 				},
-				Backup: config.BackupSettings{
+				Backup: types.BackupSettings{
 					MaxBackups:    5,
 					RetentionDays: 30,
 					BackupDir:     "~/backups",
 				},
-				Environment: config.EnvironmentSettings{
+				Environment: types.EnvironmentSettings{
 					Default:    "development",
 					AutoSwitch: true,
 				},
@@ -37,9 +49,9 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "invalid log level",
-			config: config.Config{
+			config: types.Config{
 				Version: "1.0",
-				Settings: config.Settings{
+				Settings: types.Settings{
 					LogLevel: "invalid",
 				},
 			},
@@ -47,8 +59,8 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "empty version",
-			config: config.Config{
-				Settings: config.Settings{
+			config: types.Config{
+				Settings: types.Settings{
 					LogLevel: "info",
 				},
 			},
@@ -56,12 +68,12 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "invalid backup settings",
-			config: config.Config{
+			config: types.Config{
 				Version: "1.0",
-				Settings: config.Settings{
+				Settings: types.Settings{
 					LogLevel: "info",
 				},
-				Backup: config.BackupSettings{
+				Backup: types.BackupSettings{
 					MaxBackups:    0,
 					RetentionDays: 30,
 					BackupDir:     "~/backups",
@@ -71,12 +83,12 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "invalid environment",
-			config: config.Config{
+			config: types.Config{
 				Version: "1.0",
-				Settings: config.Settings{
+				Settings: types.Settings{
 					LogLevel: "info",
 				},
-				Environment: config.EnvironmentSettings{
+				Environment: types.EnvironmentSettings{
 					Default: "invalid",
 				},
 			},
@@ -161,22 +173,23 @@ func TestServiceImpl(t *testing.T) {
 			t.Fatalf("SetValue() error = %v", err)
 		}
 
-		if err := service.Save(); err != nil {
+		if err := service.Save(testConfig); err != nil {
 			t.Fatalf("Save() error = %v", err)
 		}
 
 		newService := config.NewService()
 
-		if err := newService.Load(); err != nil {
+		_, err := newService.Load()
+		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
 
-		value, err := newService.GetValue("settings.autoUpdate")
+		val, err := newService.GetValue("settings.autoUpdate")
 		if err != nil {
-			t.Fatalf("GetValue() error = %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
-		if value != false {
-			t.Errorf("After load, GetValue() = %v, want %v", value, false)
+		if val != "false" {
+			t.Errorf("After load, GetValue() = %v, want %v", val, "false")
 		}
 	})
 
@@ -209,7 +222,7 @@ func TestServiceImpl(t *testing.T) {
 	t.Run("file operations", func(t *testing.T) {
 		// Test loading non-existent file
 		nonExistentService := config.NewService()
-		err := nonExistentService.Load()
+		_, err := nonExistentService.Load()
 		if err == nil {
 			t.Error("Load() with non-existent file should return error")
 		}
@@ -221,9 +234,9 @@ func TestServiceImpl(t *testing.T) {
 			t.Fatalf("Failed to create read-only directory: %v", mkdirErr)
 		}
 		readOnlyService := config.NewService()
-		err = readOnlyService.Save()
+		err = readOnlyService.Save(testConfig)
 		if err == nil {
-			t.Error("Save() to read-only directory should return error")
+			t.Error("expected error for readonly service")
 		}
 	})
 
@@ -241,14 +254,14 @@ settings:
 		}
 
 		invalidService := config.NewService()
-		err := invalidService.Load()
+		_, err := invalidService.Load()
 		if err == nil {
 			t.Error("Load() with invalid config should return validation error")
 		}
 	})
 
 	t.Run("section operations", func(t *testing.T) {
-		var settings config.Settings
+		var settings types.Settings
 		err := service.LoadSection("settings", &settings)
 		if err != nil {
 			t.Fatalf("LoadSection() error = %v", err)
@@ -266,4 +279,23 @@ settings:
 	})
 
 	// Add more test cases...
+}
+
+func TestGetValue(t *testing.T) {
+	service := config.NewService()
+
+	// Set up test config
+	if err := service.Save(testConfig); err != nil {
+		t.Fatalf("Failed to save test config: %v", err)
+	}
+
+	val, err := service.GetValue("settings.autoUpdate")
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+		return
+	}
+
+	if val != "true" {
+		t.Errorf("Expected 'true', got %v", val)
+	}
 }

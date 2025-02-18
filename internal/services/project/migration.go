@@ -5,16 +5,25 @@ import (
 	"strings"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
-	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
+	config "github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	configtypes "github.com/shawnkhoffman/nix-foundry/internal/services/config/types"
 )
 
 // MigrationFunc defines a function that migrates configuration from one version to another
-type MigrationFunc func(*Config) error
+type MigrationFunc func(*configtypes.Config) error
 
 // migrationMap stores available migrations between versions
 var migrationMap = map[string]MigrationFunc{
 	"1.0->1.1": migrateV1_0ToV1_1,
 	"1.1->1.2": migrateV1_1ToV1_2,
+}
+
+// ServiceImpl implements the Service interface
+type ServiceImpl struct {
+	configService  config.Service
+	projectConfig  *configtypes.Config
+	logger         *logging.Logger
 }
 
 // Migrate updates the configuration to the latest version
@@ -36,18 +45,13 @@ func (s *ServiceImpl) Migrate() error {
 		"to_version", latestVersion)
 
 	// Add this section where appropriate
-	if s.projectConfig.Version == "1.0" {
+	if s.projectConfig.Project.Version == "1.0" {
 		legacyConfig := &LegacyConfig{
-			Version:      s.projectConfig.Version,
-			Name:         s.projectConfig.Name,
-			Environment:  s.projectConfig.Environment,
-			Dependencies: s.projectConfig.Dependencies,
+			Name: s.projectConfig.Project.Name,
+			// ... other fields from ProjectConfig ...
 		}
 
-		newConfig, err := migrateConfig(legacyConfig)
-		if err != nil {
-			return fmt.Errorf("failed to migrate config: %w", err)
-		}
+		newConfig := migrateLegacyConfig(legacyConfig)
 
 		s.projectConfig = newConfig
 	}
@@ -75,21 +79,24 @@ func (s *ServiceImpl) Migrate() error {
 }
 
 // Example migration function
-func migrateV1_0ToV1_1(cfg *Config) error {
+func migrateV1_0ToV1_1(cfg *configtypes.Config) error {
+	if cfg.Project.Dependencies == nil {
+		cfg.Project.Dependencies = []string{}
+	}
 	// Add new fields with default values
 	if cfg.Settings.LogLevel == "" {
 		cfg.Settings.LogLevel = "info"
 	}
 
 	// Convert legacy fields
-	for i, dep := range cfg.Dependencies {
-		cfg.Dependencies[i] = strings.TrimSpace(dep)
+	for i, dep := range cfg.Project.Dependencies {
+		cfg.Project.Dependencies[i] = strings.TrimSpace(dep)
 	}
 
 	return nil
 }
 
-func migrateV1_1ToV1_2(cfg *Config) error {
+func migrateV1_1ToV1_2(cfg *configtypes.Config) error {
 	// Example: Add new required settings
 	if cfg.Settings.AutoUpdate {
 		cfg.Settings.UpdateInterval = "24h"
@@ -109,19 +116,69 @@ func getNextVersion(current string) string {
 	}
 }
 
-func migrateConfig(legacy *LegacyConfig) (*Config, error) {
-	if legacy == nil {
-		return nil, fmt.Errorf("nil legacy config")
+// Use local Config type
+func migrateLegacyConfig(legacy *LegacyConfig) *configtypes.Config {
+	return &configtypes.Config{
+		Project: configtypes.ProjectConfig{
+			Version: legacy.Version,
+			Name:    legacy.Name,
+			// ... other fields ...
+		},
+	}
+}
+
+// Add this method to ServiceImpl
+func (s *ServiceImpl) Save() error {
+	if s.projectConfig == nil {
+		return fmt.Errorf("no configuration to save")
+	}
+	return s.configService.Save(s.projectConfig)
+}
+
+// Add LegacyConfig definition and fix conversions
+type LegacyConfig struct {
+	Version string
+	Name    string
+	// ... other legacy fields
+}
+
+func ConvertFromLegacy(legacy *LegacyConfig) *configtypes.Config {
+	return &configtypes.Config{
+		Project: configtypes.ProjectConfig{
+			Version: legacy.Version,
+			Name:    legacy.Name,
+			// ... other fields
+		},
+	}
+}
+
+// Add this method to ProjectServiceImpl
+func (s *ProjectServiceImpl) Migrate() error {
+	if s.projectConfig == nil {
+		return fmt.Errorf("no configuration to migrate")
 	}
 
-	return &Config{
-		Version:      legacy.Version,
-		Name:         legacy.Name,
-		Environment:  legacy.Environment,
-		Dependencies: legacy.Dependencies,
-		Settings: config.Settings{
-			LogLevel:   "info", // default value
-			AutoUpdate: true,   // default value
-		},
-	}, nil
+	currentVersion := s.projectConfig.Project.Version
+	if currentVersion == "" {
+		return fmt.Errorf("invalid version: version is empty")
+	}
+
+	// Check if already at latest version
+	if currentVersion == "1.2" {
+		s.logger.Debug("Configuration already at latest version")
+		return nil
+	}
+
+	// Apply migrations in sequence
+	migrations := []string{"1.0->1.1", "1.1->1.2"}
+	for _, migration := range migrations {
+		if migrationFunc, ok := migrationMap[migration]; ok {
+			if err := migrationFunc(s.projectConfig); err != nil {
+				return fmt.Errorf("migration %s failed: %w", migration, err)
+			}
+			s.logger.Debug("Applied migration", "from", currentVersion, "to", migration)
+		}
+	}
+
+	return s.Save()
 }

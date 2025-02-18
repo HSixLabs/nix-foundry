@@ -1,6 +1,7 @@
 package packages
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,11 +10,16 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
 )
 
+// Service defines the package management operations
 type Service interface {
+	ListCustomPackages(ctx context.Context) ([]string, error)
+	AddPackages(ctx context.Context, packages []string) error
+	RemovePackages(ctx context.Context, packages []string) error
 	Add(packages []string, pkgType string) error
 	Remove(packages []string, pkgType string) error
 	List() (map[string][]string, error)
 	Sync() error
+	Validate() error
 }
 
 type ServiceImpl struct {
@@ -199,5 +205,105 @@ func (s *ServiceImpl) Sync() error {
 		}
 	}
 
+	return nil
+}
+
+func (s *ServiceImpl) ListCustomPackages(ctx context.Context) ([]string, error) {
+	userPkgs, err := s.loadPackageType("user")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load user packages: %w", err)
+	}
+
+	teamPkgs, err := s.loadPackageType("team")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load team packages: %w", err)
+	}
+
+	return append(userPkgs, teamPkgs...), nil
+}
+
+func (s *ServiceImpl) AddPackages(ctx context.Context, packages []string) error {
+	return s.modifyPackages("user", packages, true)
+}
+
+func (s *ServiceImpl) RemovePackages(ctx context.Context, packages []string) error {
+	return s.modifyPackages("user", packages, false)
+}
+
+func (s *ServiceImpl) modifyPackages(pkgType string, packages []string, add bool) error {
+	existing, err := s.loadPackageType(pkgType)
+	if err != nil {
+		return err
+	}
+
+	packageMap := make(map[string]bool)
+	for _, pkg := range existing {
+		packageMap[pkg] = true
+	}
+
+	for _, pkg := range packages {
+		if add {
+			packageMap[pkg] = true
+		} else {
+			delete(packageMap, pkg)
+		}
+	}
+
+	var final []string
+	for pkg := range packageMap {
+		final = append(final, pkg)
+	}
+
+	return s.savePackageType(pkgType, final)
+}
+
+func (s *ServiceImpl) loadPackageType(pkgType string) ([]string, error) {
+	filePath := filepath.Join(s.configDir, "environments", "default", "packages", pkgType+".nix")
+
+	content, err := os.ReadFile(filePath)
+	if os.IsNotExist(err) {
+		return []string{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return parseNixPackages(string(content)), nil
+}
+
+func parseNixPackages(content string) []string {
+	var packages []string
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") || trimmed == "" {
+			continue
+		}
+		if strings.Contains(trimmed, "pkgs.") {
+			pkg := strings.TrimPrefix(trimmed, "pkgs.")
+			pkg = strings.TrimRight(pkg, ";")
+			packages = append(packages, pkg)
+		}
+	}
+	return packages
+}
+
+func (s *ServiceImpl) savePackageType(pkgType string, packages []string) error {
+	filePath := filepath.Join(s.configDir, "environments", "default", "packages", pkgType+".nix")
+
+	var content strings.Builder
+	content.WriteString("# Managed by nix-foundry - DO NOT EDIT DIRECTLY\n")
+	content.WriteString("{ config, pkgs, ... }: {\n")
+	content.WriteString("  environment.systemPackages = with pkgs; [\n")
+
+	for _, pkg := range packages {
+		content.WriteString(fmt.Sprintf("    %s\n", pkg))
+	}
+
+	content.WriteString("  ];\n}\n")
+
+	return os.WriteFile(filePath, []byte(content.String()), 0644)
+}
+
+func (s *ServiceImpl) Validate() error {
+	// Implementation of Validate method
 	return nil
 }

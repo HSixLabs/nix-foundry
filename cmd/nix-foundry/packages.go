@@ -23,7 +23,7 @@ var listPackagesCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize package service: %w", err)
 		}
 
-		packages, err := pkgSvc.ListCustomPackages()
+		packages, err := pkgSvc.ListCustomPackages(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to load custom packages: %w", err)
 		}
@@ -57,7 +57,7 @@ var addPackageCmd = &cobra.Command{
 		spin := progress.NewSpinner("Adding packages...")
 		spin.Start()
 
-		if err := pkgSvc.AddPackages(args); err != nil {
+		if err := pkgSvc.AddPackages(cmd.Context(), args); err != nil {
 			spin.Fail("Failed to add packages")
 			return err
 		}
@@ -84,7 +84,7 @@ var removePackageCmd = &cobra.Command{
 		spin := progress.NewSpinner("Removing packages...")
 		spin.Start()
 
-		if err := pkgSvc.RemovePackages(args); err != nil {
+		if err := pkgSvc.RemovePackages(cmd.Context(), args); err != nil {
 			spin.Fail("Failed to remove packages")
 			return err
 		}

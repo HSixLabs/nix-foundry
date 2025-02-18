@@ -33,7 +33,7 @@ func TestConfigIntegration(t *testing.T) {
 		}
 
 		// Test initial save
-		if err := service.Save(); err != nil {
+		if err := service.Save(testConfig); err != nil {
 			t.Fatalf("Initial Save() failed: %v", err)
 		}
 
@@ -43,7 +43,7 @@ func TestConfigIntegration(t *testing.T) {
 		}
 
 		// Save modifications
-		if err := service.Save(); err != nil {
+		if err := service.Save(testConfig); err != nil {
 			t.Fatalf("Save() after modification failed: %v", err)
 		}
 
@@ -51,7 +51,8 @@ func TestConfigIntegration(t *testing.T) {
 		newService := config.NewService()
 
 		// Load and verify
-		if err := newService.Load(); err != nil {
+		_, err := newService.Load()
+		if err != nil {
 			t.Fatalf("Load() failed: %v", err)
 		}
 
@@ -71,8 +72,15 @@ func TestConfigIntegration(t *testing.T) {
 		}
 
 		nixConfig := &config.NixConfig{
-			Shell:  struct{ Type string }{Type: "bash"},
-			Editor: struct{ Type string }{Type: "vim"},
+			Shell: config.ShellConfig{
+				Type:     "bash",
+				InitFile: "~/.bashrc",
+			},
+			Editor: config.EditorConfig{
+				Type:        "vim",
+				ConfigPath:  "~/.vimrc",
+				PackageName: "vim",
+			},
 		}
 
 		// Apply environment settings
@@ -101,7 +109,7 @@ func TestConfigIntegration(t *testing.T) {
 
 		// Create multiple backups
 		for i := 0; i < 3; i++ {
-			if err := service.Save(); err != nil {
+			if err := service.Save(testConfig); err != nil {
 				t.Fatalf("Save() failed: %v", err)
 			}
 			time.Sleep(time.Millisecond * 100) // Ensure unique timestamps

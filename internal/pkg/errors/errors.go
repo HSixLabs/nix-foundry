@@ -152,20 +152,27 @@ func NewLoadError(path string, err error, details string) error {
 	}
 }
 
-func NewValidationError(path string, err error, details string) error {
-	return &ConfigError{
-		Op:      "Validate",
-		Path:    path,
-		Err:     err,
-		Details: details,
-	}
+// ValidationError represents a user-facing validation error
+type ValidationError struct {
+	Field       string
+	Err         error
+	UserMessage string
 }
 
-func NewConflictError(err error, details string) error {
-	return &ConfigError{
-		Op:      "ConflictCheck",
-		Err:     err,
-		Details: details,
+func (e *ValidationError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *ValidationError) Unwrap() error {
+	return e.Err
+}
+
+// NewValidationError creates a new validation error with user message
+func NewValidationError(field string, err error, userMsg string) *ValidationError {
+	return &ValidationError{
+		Field:       field,
+		Err:         err,
+		UserMessage: userMsg,
 	}
 }
 
@@ -187,5 +194,30 @@ func NewNotFoundError(err error, details string) error {
 	return &NotFoundError{
 		Err:     err,
 		Details: details,
+	}
+}
+
+// Add ConflictError type
+type ConflictError struct {
+	Path        string
+	Message     string
+	Resolution  string
+	OriginalErr error
+}
+
+func (e *ConflictError) Error() string {
+	return fmt.Sprintf("conflict at %s: %v", e.Path, e.OriginalErr)
+}
+
+func (e *ConflictError) Unwrap() error {
+	return e.OriginalErr
+}
+
+func NewConflictError(path string, err error, message string, resolution string) error {
+	return &ConflictError{
+		Path:        path,
+		OriginalErr: err,
+		Message:     message,
+		Resolution:  resolution,
 	}
 }

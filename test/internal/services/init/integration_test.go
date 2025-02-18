@@ -20,21 +20,24 @@ func TestInitIntegration(t *testing.T) {
 
 	t.Run("full initialization flow", func(t *testing.T) {
 		tempDir := t.TempDir()
-		svc := initservice.NewService(
-			tempDir,
-			project.NewService(
+		projectSvc := project.NewService(
+			config.NewService(),
+			environment.NewService(
+				tempDir,
 				config.NewService(),
-				environment.NewService(
-					tempDir,
-					config.NewService(),
-					platform.NewService(),
-				),
-				packages.NewService(tempDir),
+				platform.NewService(),
+				true,
+				true,
+				true,
 			),
+			packages.NewService(tempDir),
 		)
 
+		// No need for type conversion since interfaces are aligned
+		initService := initservice.NewService(tempDir, projectSvc)
+
 		// First initialization
-		if err := svc.Initialize(false); err != nil {
+		if err := initService.Initialize(false); err != nil {
 			t.Fatal(err)
 		}
 

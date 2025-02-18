@@ -1,25 +1,20 @@
 package config
 
-import "time"
+import (
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
+)
 
-// NewDefaultConfig creates a new configuration with default values
-func NewDefaultConfig() *Config {
-	return &Config{
-		LastUpdated: time.Now(),
-		Version:     "1.0",
-		Settings: Settings{
-			AutoUpdate: true,
-			LogLevel:   "info",
+func NewDefaultConfig() *types.Config {
+	return &types.Config{
+		Version: "1.0",
+		Project: types.ProjectConfig{
+			Environment: "development",
+			Settings:    make(map[string]string),
 		},
-		Backup: BackupSettings{
-			MaxBackups:     10,
-			RetentionDays:  30,
-			BackupDir:      "~/.nix-foundry/backups",
-			ExcludePattern: []string{".git", "node_modules"},
-		},
-		Environment: EnvironmentSettings{
-			Default:    "development",
-			AutoSwitch: true,
+		Settings: types.Settings{
+			AutoUpdate:     true,
+			UpdateInterval: "24h",
+			LogLevel:       "info",
 		},
 	}
 }

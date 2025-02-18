@@ -11,6 +11,7 @@ var _ environment.Service = (*Service)(nil)
 
 type Service struct {
 	mock.Mock
+	SetupIsolationFunc func(testMode bool, force bool) error
 }
 
 // Rollback mock
@@ -20,9 +21,9 @@ func (m *Service) Rollback(target time.Time, force bool) error {
 }
 
 // Add all other required interface methods with mock implementations
-func (m *Service) CheckHealth() string {
+func (m *Service) CheckHealth() error {
 	args := m.Called()
-	return args.String(0)
+	return args.Error(0)
 }
 
 func (m *Service) ListEnvironments() []string {
@@ -41,9 +42,23 @@ func (m *Service) Switch(target string, force bool) error {
 }
 
 // Add remaining methods with empty implementations for testing purposes
-func (m *Service) Initialize(testMode bool) error                   { return nil }
-func (m *Service) CheckPrerequisites(testMode bool) error           { return nil }
-func (m *Service) SetupIsolation(testMode bool) error               { return nil }
+func (m *Service) Initialize(testMode bool) error {
+	args := m.Called(testMode)
+	return args.Error(0)
+}
+
+func (m *Service) CheckPrerequisites(testMode bool) error {
+	args := m.Called(testMode)
+	return args.Error(0)
+}
+
+func (m *Service) SetupIsolation(testMode bool, force bool) error {
+	if m.SetupIsolationFunc != nil {
+		return m.SetupIsolationFunc(testMode, force)
+	}
+	return nil
+}
+
 func (m *Service) InstallBinary() error                             { return nil }
 func (m *Service) RestoreEnvironment(backupPath string) error       { return nil }
 func (m *Service) ValidateRestoredEnvironment(envPath string) error { return nil }
@@ -69,5 +84,22 @@ func (m *Service) SetupEnvironmentSymlink() error {
 // Add this method to InitializeNixFlake
 func (m *Service) InitializeNixFlake() error {
 	args := m.Called()
+	return args.Error(0)
+}
+
+// Add Validate method to mock implementation
+func (m *Service) Validate() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+// Add these methods to the mock Service struct
+func (m *Service) ApplyConfiguration() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *Service) AddPackage(pkg string) error {
+	args := m.Called(pkg)
 	return args.Error(0)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	configtypes "github.com/shawnkhoffman/nix-foundry/internal/services/config/types"
 )
 
 func BenchmarkConfigOperations(b *testing.B) {
@@ -17,15 +18,29 @@ func BenchmarkConfigOperations(b *testing.B) {
 	// Create a new service instance
 	service := config.NewService()
 
+	// Create a test config using configtypes
+	testConfig := &configtypes.Config{
+		Project: configtypes.ProjectConfig{
+			Version:     "1.0",
+			Name:        "test-project",
+			Environment: "development",
+			Settings: map[string]string{
+				"logLevel":   "info",
+				"autoUpdate": "true",
+			},
+		},
+	}
+
 	// Initial save for subsequent operations
-	if err := service.Save(); err != nil {
+	if err := service.Save(testConfig); err != nil {
 		b.Fatalf("Failed to save initial config: %v", err)
 	}
 
 	b.Run("Load", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if err := service.Load(); err != nil {
+			_, err := service.Load()
+			if err != nil {
 				b.Fatalf("Load failed: %v", err)
 			}
 		}
@@ -34,7 +49,7 @@ func BenchmarkConfigOperations(b *testing.B) {
 	b.Run("Save", func(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			if err := service.Save(); err != nil {
+			if err := service.Save(testConfig); err != nil {
 				b.Fatalf("Save failed: %v", err)
 			}
 		}
@@ -83,7 +98,8 @@ func BenchmarkConfigOperations(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			// Load config
-			if err := service.Load(); err != nil {
+			_, err := service.Load()
+			if err != nil {
 				b.Fatalf("Load failed: %v", err)
 			}
 
@@ -93,7 +109,7 @@ func BenchmarkConfigOperations(b *testing.B) {
 			}
 
 			// Save changes
-			if err := service.Save(); err != nil {
+			if err := service.Save(testConfig); err != nil {
 				b.Fatalf("Save failed: %v", err)
 			}
 		}

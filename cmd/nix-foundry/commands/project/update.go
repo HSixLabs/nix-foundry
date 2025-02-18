@@ -27,6 +27,9 @@ func NewProjectUpdateCommand() *cobra.Command {
 				cfgSvc.GetConfigDir(),
 				cfgSvc,
 				platformSvc,
+				false, // Add test mode flag (default to false)
+				true,  // Enable environment isolation
+				true,  // Enable auto-install
 			)
 
 			pkgSvc := packages.NewService(cfgSvc.GetConfigDir())

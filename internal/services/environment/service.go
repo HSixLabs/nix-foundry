@@ -5,6 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
@@ -12,47 +15,79 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
 	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
+	"go.uber.org/zap"
 )
 
 type Service interface {
 	Initialize(testMode bool) error
 	CheckPrerequisites(testMode bool) error
-	SetupIsolation(testMode bool) error
+	SetupIsolation(testMode bool, force bool) error
 	InstallBinary() error
 	RestoreEnvironment(backupPath string) error
 	ValidateRestoredEnvironment(envPath string) error
 	Switch(target string, force bool) error
 	Rollback(targetTime time.Time, force bool) error
 	GetCurrentEnvironment() (string, error)
-	CheckHealth() string
+	CheckHealth() error
 	ListEnvironments() []string
 	CreateEnvironment(name string, template string) error
 	SetupEnvironmentSymlink() error
 	EnableFlakeFeatures() error
 	InitializeNixFlake() error
+	Validate() error
+	ApplyConfiguration() error
+	AddPackage(pkg string) error
 }
 
 type ServiceImpl struct {
-	configDir       string
-	configService   config.Service
-	platformService platform.Service
-	logger          *logging.Logger
-	currentEnvPath  string
-	environments    map[string]string
+	configDir        string
+	configService    config.Service
+	platformService  platform.Service
+	logger           *logging.Logger
+	currentEnvPath   string
+	environments     map[string]string
+	testMode         bool
+	isolationEnabled bool
+	autoInstall      bool
 }
 
 func NewService(
 	configDir string,
-	cfgSvc config.Service,
+	configSvc config.Service,
 	platformSvc platform.Service,
+	testMode bool,
+	isolationEnabled bool,
+	autoInstall bool,
 ) Service {
+	// Convert configDir to absolute path
+	absConfigDir, err := filepath.Abs(configDir)
+	if err != nil {
+		panic(fmt.Sprintf("failed to resolve config directory: %v", err))
+	}
+
+	// Create required directories
+	requiredDirs := []string{
+		filepath.Join(absConfigDir, "environments", "default"),
+		filepath.Join(absConfigDir, "backups"),
+		filepath.Join(absConfigDir, "projects"),
+	}
+
+	for _, dir := range requiredDirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			panic(fmt.Sprintf("Failed to create environment directory: %v", err))
+		}
+	}
+
 	return &ServiceImpl{
-		configDir:       configDir,
-		configService:   cfgSvc,
-		platformService: platformSvc,
-		logger:          logging.GetLogger(),
-		currentEnvPath:  filepath.Join(configDir, "environments", "current"),
-		environments:    make(map[string]string), // Direct initialization
+		configDir:        absConfigDir,
+		configService:    configSvc,
+		platformService:  platformSvc,
+		logger:           logging.GetLogger().WithComponent("environment"),
+		currentEnvPath:   filepath.Join(absConfigDir, "environments", "current"),
+		environments:     make(map[string]string),
+		testMode:         testMode,
+		isolationEnabled: isolationEnabled,
+		autoInstall:      autoInstall,
 	}
 }
 
@@ -84,7 +119,7 @@ func (s *ServiceImpl) CheckPrerequisites(testMode bool) error {
 }
 
 func (s *ServiceImpl) InstallBinary() error {
-	s.logger.Info("Installing nix-foundry binary")
+	s.logger.Debug("Installing nix-foundry binary")
 
 	spin := progress.NewSpinner("Installing nix-foundry...")
 	spin.Start()
@@ -248,28 +283,28 @@ func (s *ServiceImpl) ListEnvironments() []string {
 	return environments
 }
 
-func (s *ServiceImpl) CheckHealth() string {
+func (s *ServiceImpl) CheckHealth() error {
 	s.logger.Debug("Checking environment health")
 
 	// Get current environment
 	currentEnv, err := s.GetCurrentEnvironment()
 	if err != nil {
-		return "ERROR: " + err.Error()
+		return fmt.Errorf("failed to get current environment: %w", err)
 	}
 
 	// Check required files
 	if err := s.validateEnvironmentStructure(currentEnv); err != nil {
-		return "UNHEALTHY: " + err.Error()
+		return fmt.Errorf("environment is UNHEALTHY: %w", err)
 	}
 
 	// Check Nix environment
 	cmd := exec.Command("nix", "flake", "check")
 	cmd.Dir = currentEnv
 	if err := cmd.Run(); err != nil {
-		return "DEGRADED: Nix flake check failed"
+		return fmt.Errorf("DEGRADED: Nix flake check failed")
 	}
 
-	return "HEALTHY"
+	return nil
 }
 
 func (s *ServiceImpl) GetCurrentEnvironment() (string, error) {
@@ -404,26 +439,78 @@ func (s *ServiceImpl) EnableFlakeFeatures() error {
 func (s *ServiceImpl) InitializeNixFlake() error {
 	s.logger.Info("Initializing Nix flake environment")
 
-	defaultEnvPath := filepath.Join(s.configDir, "environments", "default")
-
-	// Enable flakes in Nix configuration
-	cmd := exec.Command("nix-env", "--set-flag", "experimental-features", "nix-command flakes")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to enable flake features: %s: %w", string(output), err)
+	// Create environment directory structure with explicit permissions
+	envPath := filepath.Join(s.configDir, "environments", "default")
+	if err := os.MkdirAll(envPath, 0755); err != nil {
+		return fmt.Errorf("failed to create environment directory: %w", err)
 	}
 
-	// Initialize flake
-	cmd = exec.Command("nix", "flake", "init")
-	cmd.Dir = defaultEnvPath
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to initialize flake: %s: %w", string(output), err)
+	// Create both home.nix and flake.nix with full package definitions
+	files := map[string]string{
+		"home.nix": `{ config, pkgs, ... }:
+{
+  home.username = "{{.Username}}";
+  home.homeDirectory = "{{.HomeDir}}";
+  home.stateVersion = "23.11";
+
+  programs.home-manager.enable = true;
+
+  home.packages = with pkgs; [
+    # Add your packages here
+  ];
+
+  # Add more home-manager configurations here
+}`,
+		"flake.nix": `{
+  description = "Nix Foundry managed environment";
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs = { self, nixpkgs, home-manager }: let
+    systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+    forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
+  in {
+    packages = forAllSystems (system: {
+      default = nixpkgs.legacyPackages.${system}.buildEnv {
+        name = "nix-foundry-env";
+        paths = [];
+      };
+    });
+
+    defaultPackage = forAllSystems (system: self.packages.${system}.default);
+
+    homeConfigurations = forAllSystems (system: {
+      default = home-manager.lib.homeManagerConfiguration {
+        pkgs = nixpkgs.legacyPackages.${system};
+        modules = [
+          ({ config, ... }: {
+            home.username = "{{.Username}}";
+            home.homeDirectory = "{{.HomeDir}}";
+          })
+          ./home.nix
+        ];
+      };
+    });
+  };
+}`,
 	}
 
-	// Update flake lock file
-	cmd = exec.Command("nix", "flake", "update")
-	cmd.Dir = defaultEnvPath
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to update flake lock: %s: %w", string(output), err)
+	// Replace placeholders with actual values
+	username := os.Getenv("USER")
+	homeDir := os.Getenv("HOME")
+
+	for filename, content := range files {
+		content = strings.ReplaceAll(content, "{{.Username}}", username)
+		content = strings.ReplaceAll(content, "{{.HomeDir}}", homeDir)
+		filePath := filepath.Join(envPath, filename)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to create %s: %w", filename, err)
+		}
 	}
 
 	return nil
@@ -434,18 +521,143 @@ func (s *ServiceImpl) SetupEnvironmentSymlink() error {
 
 	currentLink := filepath.Join(s.configDir, "environments", "current")
 	defaultEnv := filepath.Join(s.configDir, "environments", "default")
+	tempLink := currentLink + ".tmp"
 
-	// Remove existing symlink if it exists
-	if _, err := os.Lstat(currentLink); err == nil {
-		if err := os.Remove(currentLink); err != nil {
-			return fmt.Errorf("failed to remove existing symlink: %w", err)
+	// Ensure default environment exists and is valid
+	if _, err := os.Stat(defaultEnv); os.IsNotExist(err) {
+		return fmt.Errorf("default environment missing: %w", err)
+	}
+
+	// Clean up any existing temp link (ignore errors)
+	_ = os.Remove(tempLink)
+
+	// Create temporary symlink first
+	if err := os.Symlink(defaultEnv, tempLink); err != nil {
+		return fmt.Errorf("failed to create temporary symlink: %w", err)
+	}
+
+	// Atomically replace current symlink
+	if err := os.Rename(tempLink, currentLink); err != nil {
+		_ = os.Remove(tempLink) // Clean up on failure
+		return fmt.Errorf("failed to commit symlink: %w", err)
+	}
+
+	// Final verification that symlink points to correct target
+	target, err := filepath.EvalSymlinks(currentLink)
+	if err != nil {
+		return fmt.Errorf("symlink verification failed: %w", err)
+	}
+
+	resolvedTarget, _ := filepath.EvalSymlinks(defaultEnv)
+	if target != resolvedTarget {
+		return fmt.Errorf("symlink target mismatch: expected %s, got %s", resolvedTarget, target)
+	}
+
+	s.logger.Info("Environment symlink successfully created",
+		"symlink", currentLink,
+		"target", resolvedTarget)
+	return nil
+}
+
+func (s *ServiceImpl) Initialize(testMode bool) error {
+	s.logger.Debug("Initializing environment service", zap.String("component", "environment"))
+
+	// First create core directory structure
+	if err := s.createDirectoryStructure(); err != nil {
+		return fmt.Errorf("failed to create directory structure: %w", err)
+	}
+
+	// Enable flake features before any nix operations
+	if err := s.EnableFlakeFeatures(); err != nil {
+		return fmt.Errorf("failed to enable flake features: %w", err)
+	}
+
+	// Initialize flake first
+	if err := s.InitializeNixFlake(); err != nil {
+		return fmt.Errorf("failed to initialize Nix flake: %w", err)
+	}
+
+	// Then setup isolation with proper path resolution
+	if s.isolationEnabled {
+		envPath, err := s.getEnvironmentPath("default")
+		if err != nil {
+			return fmt.Errorf("isolation setup failed: %w", err)
+		}
+		if err := s.initializeFlake(envPath, false); err != nil {
+			return fmt.Errorf("isolation setup failed: %w", err)
 		}
 	}
 
-	// Create new symlink pointing to default environment
-	if err := os.Symlink(defaultEnv, currentLink); err != nil {
-		return fmt.Errorf("failed to create environment symlink: %w", err)
+	return nil
+}
+
+// Add retry mechanism
+func retry(attempts int, delay time.Duration, fn func() error) error {
+	var err error
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			time.Sleep(delay)
+		}
+		if err = fn(); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("after %d attempts: %w", attempts, err)
+}
+
+func (s *ServiceImpl) ApplyConfiguration() error {
+	s.logger.Debug("Applying environment configuration", zap.String("component", "environment"))
+
+	envPath, err := s.getEnvironmentPath("default")
+	if err != nil {
+		return fmt.Errorf("failed to get environment path: %w", err)
 	}
 
+	// Correct system architecture mapping
+	systemArch := runtime.GOARCH
+	if systemArch == "arm64" {
+		systemArch = "aarch64"
+	}
+	systemOS := strings.ToLower(runtime.GOOS)
+	nixSystem := fmt.Sprintf("%s-%s", systemArch, systemOS)
+
+	// Use a simpler attribute path
+	cmd := exec.Command("nix", "build", "--show-trace", fmt.Sprintf(".#defaultPackage.%s", nixSystem))
+	cmd.Dir = envPath
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to build environment: %w", err)
+	}
+
+	s.logger.Info("Successfully applied configuration")
+	return nil
+}
+
+func (s *ServiceImpl) AddPackage(pkg string) error {
+	s.logger.Debug("Starting package addition", "package", pkg)
+
+	envPath, err := s.getEnvironmentPath("default")
+	if err != nil {
+		return fmt.Errorf("failed to get environment path: %w", err)
+	}
+
+	homeNixPath := filepath.Join(envPath, "home.nix")
+	content, err := os.ReadFile(homeNixPath)
+	if err != nil {
+		return fmt.Errorf("failed to read home.nix: %w", err)
+	}
+
+	// Find the packages array and append the new package
+	updatedContent := regexp.MustCompile(`home\.packages = with pkgs; \[\n([\s\S]*?)\n\s*\];`).
+		ReplaceAllString(string(content),
+			"home.packages = with pkgs; [\n$1    ${pkg}\n  ];")
+
+	if err := os.WriteFile(homeNixPath, []byte(updatedContent), 0644); err != nil {
+		return fmt.Errorf("failed to update home.nix: %w", err)
+	}
+
+	s.logger.Debug("Updated home.nix configuration")
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/profile"
 	"github.com/spf13/cobra"
@@ -17,6 +18,11 @@ func NewDeleteCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Short: "Delete a profile",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			debug, _ := cmd.Root().Flags().GetBool("debug")
+			logger := logging.GetLogger()
+			if debug {
+				logger.Debug("Starting profile deletion", "profile", args[0])
+			}
 			configSvc := config.NewService()
 			profileDir := filepath.Join(configSvc.GetConfigDir(), "profiles")
 			svc := profile.NewService(profileDir)

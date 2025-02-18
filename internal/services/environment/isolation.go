@@ -5,13 +5,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/errors"
 	"github.com/shawnkhoffman/nix-foundry/internal/pkg/types"
 )
 
+// Add package-level constant
+const defaultEnv = "default"
+
 // SetupIsolation initializes an isolated environment structure
-func (s *ServiceImpl) SetupIsolation(testMode bool) error {
+func (s *ServiceImpl) SetupIsolation(testMode bool, force bool) error {
 	if testMode {
 		s.logger.Debug("Skipping isolation setup in test mode")
 		return nil
@@ -22,28 +26,26 @@ func (s *ServiceImpl) SetupIsolation(testMode bool) error {
 		return fmt.Errorf("dependency check failed: %w", err)
 	}
 
-	// Load existing environments
-	s.environments = s.loadExistingEnvironments()
-
-	// Create required directory structure
+	// Create required directory structure FIRST
 	if err := s.createDirectoryStructure(); err != nil {
 		return fmt.Errorf("failed to create directory structure: %w", err)
 	}
 
-	// Initialize default environment if it doesn't exist
-	if _, exists := s.environments["default"]; !exists {
-		if err := s.setupEnvironment("default"); err != nil {
-			return fmt.Errorf("failed to setup default environment: %w", err)
-		}
+	// Create base environment BEFORE symlinking
+	if err := s.createBaseEnvironment(); err != nil {
+		return fmt.Errorf("base environment setup failed: %w", err)
 	}
 
-	// Setup environment symlink
-	if err := s.setupEnvironmentSymlink(); err != nil {
+	// Load existing environments AFTER base creation
+	s.environments = s.loadExistingEnvironments()
+
+	// Setup symlink with retries
+	if err := retry(3, 500*time.Millisecond, s.SetupEnvironmentSymlink); err != nil {
 		return fmt.Errorf("failed to setup environment symlink: %w", err)
 	}
 
-	// Initialize Nix flake
-	if err := s.initializeNixFlake(); err != nil {
+	// Initialize Nix flake LAST
+	if err := s.initializeFlake(defaultEnv, force); err != nil {
 		return fmt.Errorf("failed to initialize Nix flake: %w", err)
 	}
 
@@ -111,20 +113,12 @@ func (s *ServiceImpl) loadExistingEnvironments() map[string]string {
 func (s *ServiceImpl) createDirectoryStructure() error {
 	dirs := []string{
 		filepath.Join(s.configDir, "environments"),
-		filepath.Join(s.configDir, "environments", "default"),
 		filepath.Join(s.configDir, "storage"),
 		filepath.Join(s.configDir, "cache"),
 		filepath.Join(s.configDir, "backups"),
 	}
 
 	for _, dir := range dirs {
-		if fi, err := os.Stat(dir); err == nil {
-			if !fi.IsDir() {
-				return fmt.Errorf("path exists but is not a directory: %s", dir)
-			}
-			continue
-		}
-
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
@@ -134,17 +128,21 @@ func (s *ServiceImpl) createDirectoryStructure() error {
 
 // validateCoreDependencies checks if required tools are available
 func (s *ServiceImpl) validateCoreDependencies() error {
-	requiredTools := map[string]string{
-		"nix":          "Nix package manager",
-		"home-manager": "Home Manager",
-		"git":          "Git version control",
+	s.logger.Debug("Checking core dependencies")
+
+	if !s.platformService.IsNixInstalled() {
+		s.logger.Debug("Nix dependency check failed")
+		return errors.NewValidationError(
+			"nix",
+			fmt.Errorf("nix not installed"),
+			`Nix installation appears incomplete. Try:
+1. Restart your shell session
+2. Verify ~/.nix-profile/bin is in your PATH
+3. Run 'nix doctor' to check installation`,
+		)
 	}
 
-	for cmd, desc := range requiredTools {
-		if _, err := exec.LookPath(cmd); err != nil {
-			return fmt.Errorf("%s not found: %w", desc, err)
-		}
-	}
+	s.logger.Debug("All core dependencies satisfied")
 	return nil
 }
 
@@ -171,19 +169,37 @@ func (s *ServiceImpl) setupEnvironment(name string) error {
     };
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }: {
-    defaultPackage.x86_64-linux = self.packages.x86_64-linux.default;
-    defaultPackage.x86_64-darwin = self.packages.x86_64-darwin.default;
-
-    packages.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.buildEnv {
+  outputs = { self, nixpkgs, home-manager }: let
+    systems = [
+      "x86_64-linux"
+      "aarch64-linux"
+      "x86_64-darwin"
+      "aarch64-darwin"
+    ];
+  in {
+    packages.aarch64-darwin.defaultPackage.aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.buildEnv {
       name = "nix-foundry-env";
-      paths = [];
+      paths = [ ];
+    };
+    packages.x86_64-darwin.defaultPackage.x86_64-darwin = nixpkgs.legacyPackages.x86_64-darwin.buildEnv {
+      name = "nix-foundry-env";
+      paths = [ ];
+    };
+    packages.x86_64-linux.defaultPackage.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.buildEnv {
+      name = "nix-foundry-env";
+      paths = [ ];
+    };
+    packages.aarch64-linux.defaultPackage.aarch64-linux = nixpkgs.legacyPackages.aarch64-linux.buildEnv {
+      name = "nix-foundry-env";
+      paths = [ ];
     };
 
-    packages.x86_64-darwin.default = nixpkgs.legacyPackages.x86_64-darwin.buildEnv {
-      name = "nix-foundry-env";
-      paths = [];
-    };
+    homeConfigurations = nixpkgs.lib.genAttrs systems (system: {
+      default = home-manager.lib.homeManagerConfiguration {
+        pkgs = nixpkgs.legacyPackages.${system};
+        modules = [ ./home.nix ];
+      };
+    });
   };
 }`,
 		"home.nix": `{ config, pkgs, ... }:
@@ -221,54 +237,39 @@ func (s *ServiceImpl) setupEnvironment(name string) error {
 	return nil
 }
 
-// setupEnvironmentSymlink creates the current environment symlink
-func (s *ServiceImpl) setupEnvironmentSymlink() error {
-	s.logger.Info("Setting up environment symlink")
+// initializeFlake sets up the Nix flake environment
+func (s *ServiceImpl) initializeFlake(envPath string, force bool) error {
+	// Add path validation at start
+	if !filepath.IsAbs(envPath) {
+		return fmt.Errorf("environment path must be absolute: %q", envPath)
+	}
 
-	currentLink := filepath.Join(s.configDir, "environments", "current")
-	defaultEnv := filepath.Join(s.configDir, "environments", "default")
+	// Verify directory exists before proceeding
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		return fmt.Errorf("environment directory does not exist: %w", err)
+	}
 
-	// Remove existing symlink if it exists
-	if _, err := os.Lstat(currentLink); err == nil {
-		if err := os.Remove(currentLink); err != nil {
-			return fmt.Errorf("failed to remove existing symlink: %w", err)
+	flakePath := filepath.Join(envPath, "flake.nix")
+
+	// Skip initialization if flake.nix already exists
+	if _, err := os.Stat(flakePath); err == nil && !force {
+		s.logger.Info("flake.nix already exists, skipping initialization")
+		return nil
+	}
+
+	// Only create backup if forcing and flake exists
+	if force {
+		backupPath := filepath.Join(envPath, "flake.nix.bak")
+		if _, err := os.Stat(flakePath); err == nil {
+			if err := os.Rename(flakePath, backupPath); err != nil {
+				return fmt.Errorf("failed to create backup: %w", err)
+			}
+			s.logger.Info("Created backup of existing flake.nix", "backup", backupPath)
 		}
 	}
 
-	// Create new symlink pointing to default environment
-	if err := os.Symlink(defaultEnv, currentLink); err != nil {
-		return fmt.Errorf("failed to create environment symlink: %w", err)
-	}
-
-	return nil
-}
-
-// initializeNixFlake sets up the Nix flake environment
-func (s *ServiceImpl) initializeNixFlake() error {
-	s.logger.Info("Initializing Nix flake environment")
-
-	defaultEnvPath := filepath.Join(s.configDir, "environments", "default")
-
-	// Enable flakes in Nix configuration
-	cmd := exec.Command("nix-env", "--set-flag", "experimental-features", "nix-command flakes")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to enable flake features: %s: %w", string(output), err)
-	}
-
-	// Initialize flake
-	cmd = exec.Command("nix", "flake", "init")
-	cmd.Dir = defaultEnvPath
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to initialize flake: %s: %w", string(output), err)
-	}
-
-	// Update flake lock file
-	cmd = exec.Command("nix", "flake", "update")
-	cmd.Dir = defaultEnvPath
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to update flake lock: %s: %w", string(output), err)
-	}
-
+	// Remove the nix flake init command since we provide our own template
+	s.logger.Debug("Using custom flake template instead of nix flake init")
 	return nil
 }
 
@@ -312,24 +313,6 @@ func (s *ServiceImpl) Cleanup(env string) error {
 		return fmt.Errorf("cannot remove default environment")
 	}
 	return s.teardownEnvironment(env)
-}
-
-// Update Initialize method to simplify error handling
-func (s *ServiceImpl) Initialize(testMode bool) error {
-	s.logger.Info("Initializing environment")
-
-	// Check prerequisites first
-	if err := s.CheckPrerequisites(testMode); err != nil {
-		return err
-	}
-
-	// Setup platform-specific requirements
-	if err := s.platformService.SetupPlatform(testMode); err != nil {
-		return err
-	}
-
-	// Simplify error handling by returning directly
-	return s.createDirectoryStructure()
 }
 
 func (s *ServiceImpl) IsolateEnvironment(name string, _ *types.CommonConfig) error {
@@ -512,8 +495,10 @@ func (s *ServiceImpl) checkSwitchConflicts(currentEnv string) error {
 		}
 		if len(output) > 0 {
 			return errors.NewConflictError(
+				currentEnv,
 				fmt.Errorf("uncommitted changes"),
 				"current environment has uncommitted changes",
+				"Commit or stash changes before switching environments",
 			)
 		}
 	}
@@ -553,6 +538,87 @@ func (s *ServiceImpl) performSwitch(targetPath string) error {
 	if err := os.Rename(tempLink, currentLink); err != nil {
 		os.Remove(tempLink) // Clean up on failure
 		return fmt.Errorf("failed to switch symlink: %w", err)
+	}
+
+	return nil
+}
+
+// Validate checks system requirements and environment configuration
+func (s *ServiceImpl) Validate() error {
+	s.logger.Debug("Validating environment configuration")
+
+	// Check Nix installation
+	if !s.platformService.IsNixInstalled() {
+		s.logger.Warn("Nix installation validation failed")
+		return errors.NewValidationError(
+			"nix",
+			fmt.Errorf("nix not installed"),
+			"Nix installation appears incomplete. Please verify your installation and try again.",
+		)
+	}
+
+	// Verify environment directory structure
+	requiredDirs := []string{
+		filepath.Join(s.configDir, "environments"),
+		filepath.Join(s.configDir, "backups"),
+		filepath.Join(s.configDir, "projects"),
+	}
+
+	for _, dir := range requiredDirs {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			return errors.NewValidationError(
+				"environment_dirs",
+				fmt.Errorf("missing directory: %s", dir),
+				"Environment directory structure is invalid",
+			)
+		}
+	}
+
+	// Check current environment symlink
+	currentEnv := filepath.Join(s.configDir, "environments", "current")
+	if _, err := os.Lstat(currentEnv); err != nil {
+		return errors.NewValidationError(
+			"current_environment",
+			fmt.Errorf("current environment symlink missing: %w", err),
+			"No active environment configured",
+		)
+	}
+
+	// Validate platform configuration
+	if err := s.platformService.Validate(); err != nil {
+		return fmt.Errorf("platform validation failed: %w", err)
+	}
+
+	s.logger.Debug("Environment validation passed")
+	return nil
+}
+
+func (s *ServiceImpl) createBaseEnvironment() error {
+	defaultEnv := filepath.Join(s.configDir, "environments", "default")
+
+	if _, err := os.Stat(defaultEnv); os.IsNotExist(err) {
+		s.logger.Info("Creating base environment structure")
+		if err := s.setupEnvironment("default"); err != nil {
+			return fmt.Errorf("failed to create default environment: %w", err)
+		}
+	}
+
+	// Verify environment structure after creation
+	if err := s.validateEnvironmentStructure(defaultEnv); err != nil {
+		return fmt.Errorf("base environment validation failed: %w", err)
+	}
+
+	// Ensure current symlink exists
+	currentLink := filepath.Join(s.configDir, "environments", "current")
+	if _, err := os.Lstat(currentLink); err != nil {
+		if os.IsNotExist(err) {
+			s.logger.Info("Creating initial current environment symlink", "target", defaultEnv)
+			if err := os.Symlink(defaultEnv, currentLink); err != nil {
+				return fmt.Errorf("failed to create initial current symlink: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to check current environment symlink: %w", err)
+		}
 	}
 
 	return nil

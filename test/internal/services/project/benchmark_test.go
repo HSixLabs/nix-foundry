@@ -1,11 +1,13 @@
-package project
+package project_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	configtypes "github.com/shawnkhoffman/nix-foundry/internal/services/config/types"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/packages"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
@@ -25,20 +27,32 @@ func BenchmarkProjectOperations(b *testing.B) {
 		configService.GetConfigDir(),
 		configService,
 		platformSvc,
+		true,
+		true,
+		true,
 	)
 	packageService := packages.NewService(tmpDir)
 	projectService := project.NewService(configService, envService, packageService)
 
 	// Sample project config for benchmarks
-	projectConfig := &project.Config{
-		Version:     "1.0",
-		Name:        "benchmark-project",
-		Environment: "development",
-		Settings: config.Settings{
-			LogLevel:   "info",
-			AutoUpdate: true,
+	projectConfig := &configtypes.Config{
+		LastUpdated: time.Now(),
+		NixConfig: &configtypes.NixConfig{
+			Settings: configtypes.Settings{
+				LogLevel:   "info",
+				AutoUpdate: true,
+			},
 		},
-		Dependencies: []string{"git", "docker", "nodejs"},
+		Project: configtypes.ProjectConfig{
+			Version:      "1.0",
+			Name:         "benchmark-project",
+			Environment:  "development",
+			Dependencies: []string{"git", "docker", "nodejs"},
+		},
+		Environment: configtypes.EnvironmentSettings{
+			Default:    "development",
+			AutoSwitch: true,
+		},
 	}
 
 	// Validate the config before using it
@@ -47,7 +61,7 @@ func BenchmarkProjectOperations(b *testing.B) {
 	}
 
 	// Initialize the project with the config
-	if err := projectService.InitializeProject(projectConfig.Name, "test-team", true); err != nil {
+	if err := projectService.InitializeProject(projectConfig.Project.Name, "test-team", true); err != nil {
 		b.Fatalf("Failed to initialize project: %v", err)
 	}
 
@@ -80,13 +94,15 @@ func BenchmarkProjectOperations(b *testing.B) {
 	})
 
 	b.Run("validation", func(b *testing.B) {
-		personalConfig := &config.Config{
-			Version: "1.0",
-			Settings: config.Settings{
-				LogLevel:   "info",
-				AutoUpdate: true,
+		personalConfig := &configtypes.Config{
+			LastUpdated: time.Now(),
+			NixConfig: &configtypes.NixConfig{
+				Settings: configtypes.Settings{
+					LogLevel:   "info",
+					AutoUpdate: true,
+				},
 			},
-			Environment: config.EnvironmentSettings{
+			Environment: configtypes.EnvironmentSettings{
 				Default:    "development",
 				AutoSwitch: true,
 			},
@@ -115,16 +131,23 @@ func BenchmarkProjectOperations(b *testing.B) {
 
 func BenchmarkConfig_Validate(b *testing.B) {
 	// Create a valid config that exercises all validation rules
-	cfg := &project.Config{
-		Version:     "1.2",
-		Name:        "test-project",
-		Environment: "development",
-		Settings: config.Settings{
-			LogLevel:       "info",
+	cfg := &configtypes.Config{
+		Version: "1.2",
+		Project: configtypes.ProjectConfig{
+			Name:        "test-project",
+			Environment: "development",
+			Version:     "1.2",
+		},
+		Settings: configtypes.Settings{
 			AutoUpdate:     true,
 			UpdateInterval: "24h",
 		},
-		Dependencies: []string{"git", "docker"},
+		NixConfig: &configtypes.NixConfig{
+			Settings: configtypes.Settings{
+				LogLevel:   "info",
+				AutoUpdate: true,
+			},
+		},
 	}
 
 	// Validate once before benchmarking to ensure the config is valid

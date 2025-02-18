@@ -6,14 +6,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/pkg/logging"
+	configservice "github.com/shawnkhoffman/nix-foundry/internal/services/config"
+	"github.com/shawnkhoffman/nix-foundry/internal/services/config/defaults"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/environment"
 	"github.com/shawnkhoffman/nix-foundry/internal/services/platform"
-	"github.com/shawnkhoffman/nix-foundry/pkg/progress"
 	"github.com/spf13/cobra"
 )
 
-func NewInitCommand() *cobra.Command {
+func NewInitCommand(cfgSvc configservice.Service) *cobra.Command {
 	var (
 		forceConfig bool
 		autoConfig  bool
@@ -24,51 +25,75 @@ func NewInitCommand() *cobra.Command {
 		gitEmail    string
 		projectInit bool
 		teamName    string
+		autoInstall bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := logging.GetLogger()
+
 			// Get config directory
 			home, err := os.UserHomeDir()
 			if err != nil {
+				logger.WithError(err).Error("Failed to get home directory")
 				return fmt.Errorf("failed to get home directory: %w", err)
 			}
 			configDir := filepath.Join(home, ".config", "nix-foundry")
 
-			// Initialize environment service
-			envService := environment.NewService(
-				configDir,
-				config.NewService(),
-				platform.NewService(),
-			)
-			if cfgErr := envService.Initialize(testMode); cfgErr != nil {
-				return fmt.Errorf("failed to initialize environment: %w", cfgErr)
+			// Add validation checks first
+			validShells := map[string]bool{"zsh": true, "bash": true, "fish": true}
+			if !validShells[shell] {
+				return fmt.Errorf("invalid shell: %s. Valid options: zsh, bash, fish", shell)
 			}
 
-			// Initialize configuration service
-			configService := config.NewService()
+			validEditors := map[string]bool{"nano": true, "vim": true, "emacs": true, "neovim": true, "vscode": true}
+			if !validEditors[editor] {
+				return fmt.Errorf("invalid editor: %s. Valid options: nano, vim, emacs, neovim, vscode", editor)
+			}
+
+			// Initialize config service with test mode
+			if err := cfgSvc.Initialize(testMode); err != nil {
+				return fmt.Errorf("failed to initialize config service: %w", err)
+			}
+
+			// Create configuration map with validated values
+			configMap := map[string]string{
+				"shell.type":  shell,
+				"editor.type": editor,
+			}
+			if gitName != "" {
+				configMap["git.name"] = gitName
+			}
+			if gitEmail != "" {
+				configMap["git.email"] = gitEmail
+			}
+
+			// Apply the configuration values
+			if err := cfgSvc.ApplyFlags(configMap, true); err != nil {
+				return fmt.Errorf("failed to apply configuration values: %w", err)
+			}
+
+			// Generate configuration with validated values
+			cfg := defaults.New()
+
+			// If you need to access NixConfig fields:
+			cfg.NixConfig.Settings.LogLevel = "info"
 
 			// Check if config exists
-			configExists := configService.ConfigExists()
-
-			// Generate initial configuration
-			nixConfig, err := configService.GenerateInitialConfig(shell, editor, gitName, gitEmail)
-			if err != nil {
-				return fmt.Errorf("failed to generate configuration: %w", err)
-			}
+			configExists := cfgSvc.ConfigExists()
 
 			// Show configuration preview
 			if configExists {
 				fmt.Println("\n⚠️  Warning: This will overwrite your existing configuration!")
 				fmt.Println("\nThe following changes will be made:")
-				fmt.Printf("1. Update configuration in: %s\n", configService.GetConfigDir())
+				fmt.Printf("1. Update configuration in: %s\n", cfgSvc.GetConfigDir())
 				fmt.Println("2. Regenerate home-manager configuration")
 				fmt.Println("3. Update development environment")
 			} else {
 				fmt.Println("\nThe following will be configured:")
-				fmt.Printf("1. Create configuration in: %s\n", configService.GetConfigDir())
+				fmt.Printf("1. Create configuration in: %s\n", cfgSvc.GetConfigDir())
 				fmt.Printf("2. Configure shell: %s\n", shell)
 				fmt.Printf("3. Configure editor: %s\n", editor)
 				if gitName != "" || gitEmail != "" {
@@ -77,7 +102,7 @@ func NewInitCommand() *cobra.Command {
 			}
 
 			// Show configuration preview
-			if err := configService.PreviewConfiguration(nixConfig); err != nil {
+			if err := cfgSvc.PreviewConfiguration(cfg); err != nil {
 				return fmt.Errorf("failed to preview configuration: %w", err)
 			}
 
@@ -89,18 +114,56 @@ func NewInitCommand() *cobra.Command {
 				}
 			}
 
-			// Apply configuration
-			spin := progress.NewSpinner("Applying configuration...")
-			spin.Start()
-			defer spin.Stop()
-
-			if err := configService.Apply(nixConfig, testMode); err != nil {
-				spin.Fail("Failed to apply configuration")
+			// Apply the configuration
+			if err := cfgSvc.Apply(cfg.GetNixConfig(), testMode); err != nil {
 				return fmt.Errorf("failed to apply configuration: %w", err)
 			}
-			spin.Success("Configuration applied")
 
-			fmt.Println("✅ Configuration initialized successfully")
+			// Save the configuration explicitly
+			if err := cfgSvc.Save(cfg); err != nil {
+				return fmt.Errorf("failed to save configuration: %w", err)
+			}
+
+			// Initialize environment service
+			envService := environment.NewService(
+				configDir,
+				cfgSvc,
+				platform.NewService(),
+				testMode,
+				true,
+				autoInstall,
+			)
+
+			// Initialize the environment
+			if err := envService.Initialize(testMode); err != nil {
+				return fmt.Errorf("failed to initialize environment: %w", err)
+			}
+
+			// Apply the configuration through home-manager
+			if err := envService.ApplyConfiguration(); err != nil {
+				return fmt.Errorf("failed to activate configuration: %w", err)
+			}
+
+			fmt.Println("\n✅ Configuration initialized successfully")
+			fmt.Println("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓")
+			fmt.Println("┃         Configuration Summary       ┃")
+			fmt.Println("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫")
+			fmt.Printf("┃ %-20s %-18s ┃\n", "Config Directory:", cfgSvc.GetConfigDir())
+			fmt.Printf("┃ %-20s %-18s ┃\n", "Shell:", shell)
+			fmt.Printf("┃ %-20s %-18s ┃\n", "Editor:", editor)
+			if gitName != "" || gitEmail != "" {
+				fmt.Printf("┃ %-20s %-18s ┃\n", "Git Name:", gitName)
+				fmt.Printf("┃ %-20s %-18s ┃\n", "Git Email:", gitEmail)
+			}
+			fmt.Println("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛")
+
+			// Add next steps guidance
+			fmt.Println("\nNext steps:")
+			fmt.Println(" 1. Review your configuration:")
+			fmt.Println("    cat", filepath.Join(cfgSvc.GetConfigDir(), "config.yaml"))
+			fmt.Println(" 2. Add packages:")
+			fmt.Println("    nix-foundry packages add [package-name]")
+
 			return nil
 		},
 	}
@@ -115,6 +178,7 @@ func NewInitCommand() *cobra.Command {
 	cmd.Flags().StringVar(&gitEmail, "git-email", "", "Git user email")
 	cmd.Flags().BoolVar(&projectInit, "project", false, "Initialize a project environment")
 	cmd.Flags().StringVar(&teamName, "team", "", "Team configuration to use")
+	cmd.Flags().BoolVar(&autoInstall, "auto-install", false, "Automatically install dependencies without prompting")
 
 	return cmd
 }
@@ -126,23 +190,4 @@ func confirmApply() bool {
 		return false
 	}
 	return strings.EqualFold(confirm, "y") || strings.EqualFold(confirm, "yes")
-}
-
-func newInitCommand(cfgSvc config.Service) *cobra.Command {
-	var testMode bool
-
-	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Initialize configuration",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := cfgSvc.Initialize(testMode); err != nil {
-				return fmt.Errorf("failed to initialize configuration: %w", err)
-			}
-			fmt.Println("✅ Configuration initialized")
-			return nil
-		},
-	}
-
-	cmd.Flags().BoolVar(&testMode, "test", false, "Initialize with test configuration")
-	return cmd
 }
