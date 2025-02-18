@@ -17,11 +17,11 @@ import (
 
 type (
 	// Use type aliases to ensure compatibility
-	NixConfig = types.NixConfig
-	Settings = types.Settings
-	ShellConfig = types.ShellConfig
-	EditorConfig = types.EditorConfig
-	GitConfig = types.GitConfig
+	NixConfig      = types.NixConfig
+	Settings       = types.Settings
+	ShellConfig    = types.ShellConfig
+	EditorConfig   = types.EditorConfig
+	GitConfig      = types.GitConfig
 	PackagesConfig = types.PackagesConfig
 )
 
@@ -93,7 +93,7 @@ type Manager struct {
 	logger           *logging.Logger
 	cfg              *types.Config
 	configPath       string
-	nixConfig        *types.NixConfig  // Use types.NixConfig
+	nixConfig        *types.NixConfig // Use types.NixConfig
 	retentionDays    int
 	maxBackups       int
 	compressionLevel int
@@ -177,7 +177,7 @@ func NewManager(configDir string, logger *logging.Logger) *Manager {
 		configDir:   configDir,
 		logger:      logger,
 		cfg:         &types.Config{},
-		nixConfig:   &types.NixConfig{},  // Use types.NixConfig
+		nixConfig:   &types.NixConfig{}, // Use types.NixConfig
 		backupDir:   filepath.Join(configDir, "backups"),
 		packageFile: filepath.Join(configDir, "packages.yaml"),
 	}
@@ -550,7 +550,7 @@ func (m *Manager) Initialize(createIfMissing bool) error {
 		// Convert local NixConfig to types.NixConfig
 		nixConfig := &types.NixConfig{
 			Version:  config.Version,
-			Settings: types.Settings(config.Settings),  // Explicit conversion
+			Settings: types.Settings(config.Settings), // Explicit conversion
 			Shell:    types.ShellConfig(config.Shell),
 			Editor:   types.EditorConfig(config.Editor),
 			Git:      types.GitConfig(config.Git),
@@ -562,8 +562,8 @@ func (m *Manager) Initialize(createIfMissing bool) error {
 	// Create a types.Config from the nixConfig
 	cfg := &types.Config{
 		Version:   m.nixConfig.Version,
-		NixConfig: m.nixConfig,  // Now using converted types.NixConfig
-		Settings:  types.Settings(m.nixConfig.Settings),  // Explicit conversion
+		NixConfig: m.nixConfig,                          // Now using converted types.NixConfig
+		Settings:  types.Settings(m.nixConfig.Settings), // Explicit conversion
 	}
 
 	return m.Save(cfg)
@@ -578,8 +578,8 @@ func (m *Manager) Load() (*types.Config, error) {
 	// Create a new types.Config with explicit type conversions
 	return &types.Config{
 		Version:   m.nixConfig.Version,
-		NixConfig: m.nixConfig,  // Now using converted types.NixConfig
-		Settings:  types.Settings(m.nixConfig.Settings),  // Explicit conversion
+		NixConfig: m.nixConfig,                          // Now using converted types.NixConfig
+		Settings:  types.Settings(m.nixConfig.Settings), // Explicit conversion
 	}, nil
 }
 
@@ -667,12 +667,12 @@ type BaseConfig struct {
 
 type ProjectConfig struct {
 	BaseConfig
-	Required []string `yaml:"required"`
-	Settings Settings `yaml:"settings"`
-	Version     string            `yaml:"version"`
-	Name        string            `yaml:"name"`
-	Environment string            `yaml:"environment"`
-	Tools       []string          `yaml:"tools"`
+	Required    []string `yaml:"required"`
+	Settings    Settings `yaml:"settings"`
+	Version     string   `yaml:"version"`
+	Name        string   `yaml:"name"`
+	Environment string   `yaml:"environment"`
+	Tools       []string `yaml:"tools"`
 }
 
 func (s *ServiceImpl) LoadConfig(configType Type, name string) (interface{}, error) {
@@ -891,7 +891,7 @@ func (m *Manager) ValidateConfiguration(verbose bool) error {
 	if len(validationErrors) > 0 {
 		// Only return the raw errors without joining if we've already shown verbose output
 		if verbose {
-			return nil  // We've already displayed the errors in verbose mode
+			return nil // We've already displayed the errors in verbose mode
 		}
 		return fmt.Errorf("%s", strings.Join(validationErrors, "\n"))
 	}
@@ -926,28 +926,40 @@ func (s *ServiceImpl) CreateConfigFromMap(configMap map[string]string) *types.Ni
 
 func defaultInitFile(shell string) string {
 	switch shell {
-	case "zsh": return "~/.zshrc"
-	case "bash": return "~/.bashrc"
-	case "fish": return "~/.config/fish/config.fish"
-	default: return "~/.bashrc"
+	case "zsh":
+		return "~/.zshrc"
+	case "bash":
+		return "~/.bashrc"
+	case "fish":
+		return "~/.config/fish/config.fish"
+	default:
+		return "~/.bashrc"
 	}
 }
 
 func defaultEditorConfig(editor string) string {
 	switch editor {
-	case "vim": return "~/.vimrc"
-	case "neovim": return "~/.config/nvim/init.vim"
-	case "vscode": return "~/.vscode/argv.json"
-	default: return ""
+	case "vim":
+		return "~/.vimrc"
+	case "neovim":
+		return "~/.config/nvim/init.vim"
+	case "vscode":
+		return "~/.vscode/argv.json"
+	default:
+		return ""
 	}
 }
 
 func defaultEditorPackage(editor string) string {
 	switch editor {
-	case "vim": return "vim"
-	case "neovim": return "neovim"
-	case "vscode": return "vscode"
-	default: return ""
+	case "vim":
+		return "vim"
+	case "neovim":
+		return "neovim"
+	case "vscode":
+		return "vscode"
+	default:
+		return ""
 	}
 }
 
@@ -1060,7 +1072,7 @@ func (m *Manager) setStringValue(key string, value string) error {
 		m.cfg = &types.Config{}
 	}
 	if m.nixConfig == nil {
-		m.nixConfig = &types.NixConfig{}  // Using aliased type
+		m.nixConfig = &types.NixConfig{} // Using aliased type
 	}
 
 	// Handle short key aliases

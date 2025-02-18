@@ -400,6 +400,6 @@ func (s *ProjectServiceImpl) validateSettingsConflicts(settings map[string]strin
 
 // Make sure ProjectServiceImpl implements both interfaces
 var (
-	_ Service = (*ProjectServiceImpl)(nil)
+	_ Service        = (*ProjectServiceImpl)(nil)
 	_ ProjectService = (*ProjectServiceImpl)(nil)
 )

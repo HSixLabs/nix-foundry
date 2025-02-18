@@ -10,13 +10,13 @@ import (
 
 // ProjectConfig represents the project configuration
 type ProjectConfig struct {
-	Version      string              `yaml:"version"`
-	Name         string              `yaml:"name"`
-	Environment  string              `yaml:"environment"`
-	Dependencies []string            `yaml:"dependencies"`
-	Settings     map[string]string   `yaml:"settings"`
-	Tools        []string            `yaml:"tools"`
-	Required     []string            `yaml:"required"`
+	Version      string            `yaml:"version"`
+	Name         string            `yaml:"name"`
+	Environment  string            `yaml:"environment"`
+	Dependencies []string          `yaml:"dependencies"`
+	Settings     map[string]string `yaml:"settings"`
+	Tools        []string          `yaml:"tools"`
+	Required     []string          `yaml:"required"`
 }
 
 // DependencyList returns the list of project dependencies

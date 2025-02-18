@@ -29,6 +29,7 @@ func getNestedValue(obj interface{}, path []string) (interface{}, error) {
 }
 
 // Add lint ignore comment for intentionally kept unused function
+//
 //lint:ignore U1000 This is used via reflection in other packages
 func setNestedValue(obj interface{}, path []string, value string) error {
 	current := reflect.ValueOf(obj)

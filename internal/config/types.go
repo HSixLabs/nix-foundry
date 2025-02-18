@@ -5,11 +5,11 @@ import (
 )
 
 type Config struct {
-	Shell     ShellConfig  `yaml:"shell"`
-	Editor    EditorConfig `yaml:"editor"`
-	Git       GitConfig    `yaml:"git"`
-	Packages  PackageConfig `yaml:"packages"`
-	Project   project.Config `yaml:"project"`
+	Shell    ShellConfig    `yaml:"shell"`
+	Editor   EditorConfig   `yaml:"editor"`
+	Git      GitConfig      `yaml:"git"`
+	Packages PackageConfig  `yaml:"packages"`
+	Project  project.Config `yaml:"project"`
 }
 
 type PackageConfig struct {

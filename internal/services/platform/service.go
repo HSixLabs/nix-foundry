@@ -162,7 +162,7 @@ func (s *ServiceImpl) InstallNix() error {
 	os.Setenv("PATH", fmt.Sprintf("%s:%s",
 		"/nix/var/nix/profiles/default/bin",
 		filepath.Join(os.Getenv("HOME"), ".nix-profile/bin"),
-	) + ":" + os.Getenv("PATH"))
+	)+":"+os.Getenv("PATH"))
 
 	return nil
 }

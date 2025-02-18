@@ -15,7 +15,7 @@ import (
 type testService struct {
 	project.ProjectService
 	projectServiceImpl *project.ProjectServiceImpl
-	Config *project.Config
+	Config             *project.Config
 }
 
 func newTestService(configService config.Service, envService environment.Service, packageService packages.Service) *testService {
@@ -23,7 +23,7 @@ func newTestService(configService config.Service, envService environment.Service
 	return &testService{
 		ProjectService:     impl,
 		projectServiceImpl: impl,
-		Config:            nil,
+		Config:             nil,
 	}
 }
 

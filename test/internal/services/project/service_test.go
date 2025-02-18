@@ -33,7 +33,6 @@ func (m *mockConfigService) SaveConfig(cfg *types.Config) error {
 	return nil
 }
 
-
 func (m *mockConfigService) GetValue(key string) (interface{}, error) {
 	return "", nil
 }
@@ -162,7 +161,6 @@ func (m *mockConfigService) MergeProjectConfigs(projectConfig types.ProjectConfi
 	return projectConfig
 }
 
-
 // Add ReadConfig method to match interface
 func (m *mockConfigService) ReadConfig(path string, v interface{}) error {
 	return nil
@@ -229,7 +227,6 @@ func (m *mockConfigService) ValidateConfiguration(testMode bool) error {
 func (m *mockConfigService) WriteConfig(path string, v interface{}) error {
 	return nil
 }
-
 
 // testServiceImpl extends ServiceImpl for testing
 type testServiceImpl struct {
@@ -428,7 +425,7 @@ dependencies:
 				Version:     "1.0",
 				Name:        "test-project",
 				Environment: "development",
-				Settings:    map[string]string{
+				Settings: map[string]string{
 					"LogLevel":   "info",
 					"AutoUpdate": "true",
 				},
@@ -525,10 +522,10 @@ func TestProjectConfig(t *testing.T) {
 func TestConfigValidation(t *testing.T) {
 	cfg := &configtypes.Config{
 		Project: configtypes.ProjectConfig{
-			Version: "1.0",
-			Name:    "test-project",
+			Version:     "1.0",
+			Name:        "test-project",
 			Environment: "development",
-			Settings: make(map[string]string),
+			Settings:    make(map[string]string),
 		},
 	}
 

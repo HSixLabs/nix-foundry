@@ -172,9 +172,9 @@ func NewBackupCommand() *cobra.Command {
 		"", // empty string for test
 		configSvc,
 		platformSvc,
-		true,  // Enable test mode for testing
-		true,  // Enable isolation for test environment
-		true,  // Enable auto-install
+		true, // Enable test mode for testing
+		true, // Enable isolation for test environment
+		true, // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService("")
@@ -202,9 +202,9 @@ func TestBackups(t *testing.T) {
 		tempDir,
 		cfgManager,
 		platformSvc,
-		true,  // Enable test mode for testing
-		true,  // Enable isolation for test environment
-		true,  // Enable auto-install
+		true, // Enable test mode for testing
+		true, // Enable isolation for test environment
+		true, // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(tempDir)
@@ -557,9 +557,9 @@ func TestBackupCommands(t *testing.T) {
 		configService.GetConfigDir(),
 		configService,
 		platformSvc,
-		true,  // Enable test mode for testing
-		true,  // Enable isolation for test environment
-		true,  // Enable auto-install
+		true, // Enable test mode for testing
+		true, // Enable isolation for test environment
+		true, // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(configService.GetConfigDir())
@@ -593,9 +593,9 @@ func TestRestoreCommand(t *testing.T) {
 		configService.GetConfigDir(),
 		configService,
 		platformSvc,
-		true,  // Enable test mode for testing
-		true,  // Enable isolation for test environment
-		true,  // Enable auto-install
+		true, // Enable test mode for testing
+		true, // Enable isolation for test environment
+		true, // Enable auto-install
 	)
 
 	pkgSvc := packages.NewService(configService.GetConfigDir())

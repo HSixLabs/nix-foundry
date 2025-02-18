@@ -131,9 +131,18 @@ type PlatformConfig struct {
 
 type DevelopmentConfig struct {
 	Languages struct {
-		Go     struct{ Version string; Packages []string }
-		Node   struct{ Version string; Packages []string }
-		Python struct{ Version string; Packages []string }
+		Go struct {
+			Version  string
+			Packages []string
+		}
+		Node struct {
+			Version  string
+			Packages []string
+		}
+		Python struct {
+			Version  string
+			Packages []string
+		}
 	} `yaml:"languages"`
 	Tools []string `yaml:"tools"`
 }
@@ -163,14 +172,14 @@ func (b BackupSettings) Validate() error {
 
 // Add these type definitions
 type UserConfig struct {
-	Version     string            `yaml:"version"`
-	Settings    Settings          `yaml:"settings"`
+	Version     string              `yaml:"version"`
+	Settings    Settings            `yaml:"settings"`
 	Environment EnvironmentSettings `yaml:"environment"`
 }
 
 type SystemConfig struct {
-	Version     string            `yaml:"version"`
-	Settings    Settings          `yaml:"settings"`
+	Version     string              `yaml:"version"`
+	Settings    Settings            `yaml:"settings"`
 	Environment EnvironmentSettings `yaml:"environment"`
 }
 
@@ -183,7 +192,7 @@ func SettingsToMap(s types.Settings) map[string]string {
 	return map[string]string{
 		"autoUpdate":     fmt.Sprintf("%v", s.AutoUpdate),
 		"updateInterval": s.UpdateInterval,
-		"logLevel":      s.LogLevel,
+		"logLevel":       s.LogLevel,
 	}
 }
 
@@ -276,14 +285,14 @@ type ConfigPreviewer interface {
 // Consolidate duplicate struct declarations
 
 type Config struct {
-	NixConfig    types.NixConfig
-	Project      types.ProjectConfig
-	Packages     types.PackagesConfig
-	Team         types.TeamConfig
-	Platform     types.PlatformConfig
-	Development  types.DevelopmentConfig
-	Settings     LocalSettings
-	Environment  EnvironmentSettings
+	NixConfig   types.NixConfig
+	Project     types.ProjectConfig
+	Packages    types.PackagesConfig
+	Team        types.TeamConfig
+	Platform    types.PlatformConfig
+	Development types.DevelopmentConfig
+	Settings    LocalSettings
+	Environment EnvironmentSettings
 }
 
 // Remove duplicate declarations of NixConfig, PackagesConfig, etc.

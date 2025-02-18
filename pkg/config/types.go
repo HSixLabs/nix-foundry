@@ -27,14 +27,14 @@ type Validator interface {
 
 // ProjectConfig represents project-specific configuration
 type ProjectConfig struct {
-	BaseConfig `yaml:",inline"`
-	Version    string              `yaml:"version"`
-	Name       string              `yaml:"name"`
-	Environment string              `yaml:"environment"`
-	Dependencies []string            `yaml:"dependencies"`
-	Required     []string           `yaml:"required,omitempty"`
-	Settings     map[string]string  `yaml:"settings,omitempty"`
-	Tools        []string           `yaml:"tools,omitempty"`
+	BaseConfig   `yaml:",inline"`
+	Version      string            `yaml:"version"`
+	Name         string            `yaml:"name"`
+	Environment  string            `yaml:"environment"`
+	Dependencies []string          `yaml:"dependencies"`
+	Required     []string          `yaml:"required,omitempty"`
+	Settings     map[string]string `yaml:"settings,omitempty"`
+	Tools        []string          `yaml:"tools,omitempty"`
 }
 
 // Validate implements the Validator interface

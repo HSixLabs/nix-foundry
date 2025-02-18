@@ -7,9 +7,9 @@ import (
 
 func ToServiceConfig(pkg *types.ProjectConfig) *servicetypes.ProjectConfig {
 	return &servicetypes.ProjectConfig{
-		Version:     pkg.Version,
-		Name:        pkg.Name,
-		Environment: pkg.Environment,
+		Version:      pkg.Version,
+		Name:         pkg.Name,
+		Environment:  pkg.Environment,
 		Settings:     pkg.Settings,
 		Dependencies: pkg.Dependencies,
 	}

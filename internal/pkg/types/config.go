@@ -7,18 +7,18 @@ import (
 
 // Config represents the main configuration structure
 type Config struct {
-	LastUpdated time.Time           `yaml:"lastUpdated"`
-	Version     string              `yaml:"version"`
-	NixConfig   *NixConfig          `yaml:"nixConfig"`
-	Settings    Settings            `yaml:"settings"`
-	Backup      BackupSettings      `yaml:"backup"`
-	Environment EnvironmentSettings `yaml:"environment"`
-	Shell       ShellConfig         `yaml:"shell"`
-	Editor      EditorConfig        `yaml:"editor"`
-	Git         GitConfig           `yaml:"git"`
-	Project     ProjectConfig       `yaml:"project"`
-	Packages    PackagesConfig      `yaml:"packages"`
-	Dependencies []string          `yaml:"dependencies"`
+	LastUpdated  time.Time           `yaml:"lastUpdated"`
+	Version      string              `yaml:"version"`
+	NixConfig    *NixConfig          `yaml:"nixConfig"`
+	Settings     Settings            `yaml:"settings"`
+	Backup       BackupSettings      `yaml:"backup"`
+	Environment  EnvironmentSettings `yaml:"environment"`
+	Shell        ShellConfig         `yaml:"shell"`
+	Editor       EditorConfig        `yaml:"editor"`
+	Git          GitConfig           `yaml:"git"`
+	Project      ProjectConfig       `yaml:"project"`
+	Packages     PackagesConfig      `yaml:"packages"`
+	Dependencies []string            `yaml:"dependencies"`
 }
 
 // NewDefaultConfig creates a new default configuration
@@ -67,14 +67,14 @@ type GitConfig struct {
 
 // Replace undefined types with actual definitions
 type BackupSettings struct {
-	MaxBackups     int      `yaml:"maxBackups"`
-	RetentionDays  int      `yaml:"retentionDays"`
-	BackupDir      string   `yaml:"backupDir"`
-	ExcludePattern []string `yaml:"excludePattern"`
-	Frequency      string   `yaml:"frequency"`
-	Location       string   `yaml:"location"`
-	Enabled          bool   `yaml:"enabled"`
-	CompressionLevel int    `yaml:"compressionLevel"`
+	MaxBackups       int      `yaml:"maxBackups"`
+	RetentionDays    int      `yaml:"retentionDays"`
+	BackupDir        string   `yaml:"backupDir"`
+	ExcludePattern   []string `yaml:"excludePattern"`
+	Frequency        string   `yaml:"frequency"`
+	Location         string   `yaml:"location"`
+	Enabled          bool     `yaml:"enabled"`
+	CompressionLevel int      `yaml:"compressionLevel"`
 }
 
 type EnvironmentSettings struct {

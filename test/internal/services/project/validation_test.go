@@ -46,9 +46,9 @@ func TestConfig_ValidateSettings_EmptyInterval(t *testing.T) {
 func TestConfig_ValidateDependencies_Empty(t *testing.T) {
 	cfg := &configtypes.Config{
 		Project: configtypes.ProjectConfig{
-			Version:     "1.2",
-			Name:        "test-project",
-			Environment: "development",
+			Version:      "1.2",
+			Name:         "test-project",
+			Environment:  "development",
 			Dependencies: []string{},
 		},
 	}

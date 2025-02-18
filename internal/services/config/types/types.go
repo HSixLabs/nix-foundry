@@ -8,10 +8,10 @@ import (
 
 // Replace local Config with type alias to core types.Config
 type (
-	Config = types.Config
-	ProjectConfig = types.ProjectConfig
-	NixConfig = types.NixConfig
-	Settings = types.Settings
+	Config              = types.Config
+	ProjectConfig       = types.ProjectConfig
+	NixConfig           = types.NixConfig
+	Settings            = types.Settings
 	EnvironmentSettings = types.EnvironmentSettings
 )
 

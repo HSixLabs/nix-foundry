@@ -33,8 +33,8 @@ func (s *ConfigurationService) InitializeProject(projectName, teamName string, f
 
 	// Create base project config using types.ProjectConfig
 	projectCfg := types.ProjectConfig{
-		Version: "1.0",
-		Name:    projectName,
+		Version:  "1.0",
+		Name:     projectName,
 		Required: []string{"git"},
 	}
 
@@ -225,7 +225,7 @@ func convertConfig(cfg *config.Config) *types.Config {
 
 	return &types.Config{
 		LastUpdated: time.Now(),
-		NixConfig:   &types.NixConfig{
+		NixConfig: &types.NixConfig{
 			Version:     cfg.NixConfig.Version,
 			Settings:    cfg.NixConfig.Settings,
 			Shell:       cfg.NixConfig.Shell,
@@ -236,9 +236,9 @@ func convertConfig(cfg *config.Config) *types.Config {
 			Platform:    cfg.NixConfig.Platform,
 			Development: cfg.NixConfig.Development,
 		},
-		Project:     cfg.Project,
-		Packages:    cfg.NixConfig.Packages,
-		Settings:    types.Settings{
+		Project:  cfg.Project,
+		Packages: cfg.NixConfig.Packages,
+		Settings: types.Settings{
 			AutoUpdate:     cfg.NixConfig.Settings.AutoUpdate,
 			UpdateInterval: cfg.NixConfig.Settings.UpdateInterval,
 			LogLevel:       cfg.NixConfig.Settings.LogLevel,
@@ -247,9 +247,9 @@ func convertConfig(cfg *config.Config) *types.Config {
 			// Map the environment settings fields as needed
 			// Add the appropriate fields based on your EnvironmentSettings struct
 		},
-		Shell:       cfg.NixConfig.Shell,
-		Editor:      cfg.NixConfig.Editor,
-		Git:         cfg.NixConfig.Git,
+		Shell:        cfg.NixConfig.Shell,
+		Editor:       cfg.NixConfig.Editor,
+		Git:          cfg.NixConfig.Git,
 		Dependencies: cfg.Project.Dependencies,
 	}
 }

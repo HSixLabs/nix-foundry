@@ -21,9 +21,9 @@ var migrationMap = map[string]MigrationFunc{
 
 // ServiceImpl implements the Service interface
 type ServiceImpl struct {
-	configService  config.Service
-	projectConfig  *configtypes.Config
-	logger         *logging.Logger
+	configService config.Service
+	projectConfig *configtypes.Config
+	logger        *logging.Logger
 }
 
 // Migrate updates the configuration to the latest version
