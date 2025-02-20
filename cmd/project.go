@@ -11,6 +11,5 @@ func NewProjectCmd() *cobra.Command {
 		Long:  `Commands for managing Nix projects.`,
 	}
 
-	// Add subcommands here if needed
 	return cmd
 }

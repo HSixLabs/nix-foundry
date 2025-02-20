@@ -25,14 +25,12 @@ Use with caution! This action is irreversible.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc := config.NewConfigService(filesystem.NewOSFileSystem())
 
-			// Get config directory
 			activePath, err := svc.ActiveConfigPath()
 			if err != nil {
 				return fmt.Errorf("failed to locate config: %w", err)
 			}
 			configDir := filepath.Dir(activePath)
 
-			// Confirmation prompt
 			if !force {
 				confirmed, err := confirmUninstall()
 				if err != nil {

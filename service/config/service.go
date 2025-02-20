@@ -78,8 +78,6 @@ nix:
   channels:
     - name: "nixpkgs"
       url: "github:NixOS/nixpkgs/nixpkgs-unstable"
-  packages:
-    core: [htop, jq]
 settings:
   autoUpdate: true
   updateInterval: "24h"
@@ -87,7 +85,6 @@ settings:
 `, kind, name, name, baseSection)
 }
 
-// CopyConfig copies the content from source to destination.
 func (s *ConfigService) CopyConfig(source, destination string) error {
 	data, err := s.fs.ReadFile(source)
 	if err != nil {
@@ -99,7 +96,6 @@ func (s *ConfigService) CopyConfig(source, destination string) error {
 	return nil
 }
 
-// ValidateConfig validates the configuration file at the given path.
 func (s *ConfigService) ValidateConfig(path string) error {
 	content, err := s.fs.ReadFile(path)
 	if err != nil {
@@ -114,9 +110,7 @@ func (s *ConfigService) ValidateConfig(path string) error {
 	return err
 }
 
-// UpdateActiveConfigWithPackages updates the active configuration with selected packages.
 func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, packages []string, selectedShell string) error {
-	// Read existing config
 	data, err := s.fs.ReadFile(activeConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to read active config: %w", err)
@@ -127,25 +121,20 @@ func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, 
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Append selected packages to core packages
 	cfg.Nix.Packages.Core = append(cfg.Nix.Packages.Core, packages...)
 	cfg.Nix.Shell = selectedShell
 
-	// Remove duplicates
 	cfg.Nix.Packages.Core = Unique(cfg.Nix.Packages.Core)
 
-	// Marshal back to YAML
 	updatedData, err := yaml.Marshal(&cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal updated config: %w", err)
 	}
 
-	// Write back to active config
 	if err := s.fs.WriteFile(activeConfigPath, updatedData, 0644); err != nil {
 		return fmt.Errorf("failed to write updated config: %w", err)
 	}
 
-	// Validate the updated config
 	if err := s.ValidateConfig(activeConfigPath); err != nil {
 		return fmt.Errorf("validation failed after updating config: %w", err)
 	}
@@ -153,7 +142,6 @@ func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, 
 	return nil
 }
 
-// Unique removes duplicate strings from a slice.
 func Unique(slice []string) []string {
 	uniqueMap := make(map[string]struct{})
 	var result []string
@@ -200,7 +188,6 @@ func (s *ConfigService) ActiveConfigPath() (string, error) {
 	return filepath.Join(homeDir, ".config", "nix-foundry", "config.yaml"), nil
 }
 
-// UpdateConfig applies modifications to an existing config file
 func (s *ConfigService) UpdateConfig(configPath string, updates ...UpdateFunc) error {
 	data, err := s.fs.ReadFile(configPath)
 	if err != nil {

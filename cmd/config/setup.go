@@ -34,7 +34,6 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc := config.NewConfigService(filesystem.NewOSFileSystem())
 
-			// Detect and set shell
 			currentShell := os.Getenv("SHELL")
 			if currentShell == "" {
 				currentShell = "/bin/sh"
@@ -45,33 +44,27 @@ Examples:
 				return fmt.Errorf("failed to get shell selection: %w", err)
 			}
 
-			// Prompt user for additional package/tool selections
 			selectedPackages, err := promptForPackages()
 			if err != nil {
 				return fmt.Errorf("failed to get package selections: %w", err)
 			}
 
-			// Show confirmation with selections
 			confirmed, err := confirmSelections(selectedShell, selectedPackages)
 			if err != nil {
 				return fmt.Errorf("confirmation failed: %w", err)
 			}
 			if !confirmed {
-				return nil // No message here - handled in main
+				return nil
 			}
 
-			// Only AFTER confirmation do we create the config
-			// Define default configuration parameters
 			defaultKind := "user"
 			defaultName := "default"
 			basePath := ""
 
-			// Initialize the default configuration
 			if err := svc.InitConfig(defaultKind, defaultName, force, false, basePath); err != nil {
 				return fmt.Errorf("failed to setup initial config: %w", err)
 			}
 
-			// Define paths
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
 				return fmt.Errorf("failed to get home directory: %w", err)
@@ -79,12 +72,10 @@ Examples:
 			activeConfigPath := filepath.Join(homeDir, ".config", "nix-foundry", "config.yaml")
 			createdConfigPath := filepath.Join(homeDir, ".config", "nix-foundry", "users", defaultName, "config.yaml")
 
-			// Set the active configuration by copying the created config
 			if copyErr := svc.CopyConfig(createdConfigPath, activeConfigPath); copyErr != nil {
 				return fmt.Errorf("failed to set active config: %w", copyErr)
 			}
 
-			// Update the active configuration with selected packages
 			if err := svc.UpdateActiveConfigWithPackages(activeConfigPath, selectedPackages, selectedShell); err != nil {
 				return fmt.Errorf("failed to update active config with packages: %w", err)
 			}
@@ -99,7 +90,6 @@ Examples:
 	return cmd
 }
 
-// promptForPackages interactively prompts the user to select common packages and tools.
 func promptForPackages() ([]string, error) {
 	var selected []string
 	commonPackages := []string{
@@ -111,7 +101,6 @@ func promptForPackages() ([]string, error) {
 		"docker",
 		"tmux",
 		"fzf",
-		"zsh",
 		"neovim",
 	}
 
@@ -131,7 +120,6 @@ func promptForPackages() ([]string, error) {
 
 func promptForShell(currentShell string) (string, error) {
 	baseName := filepath.Base(currentShell)
-	// Clean up shell name for display
 	cleanName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
 	cleanName = strings.Split(cleanName, "-")[0]
 
@@ -154,9 +142,8 @@ func promptForShell(currentShell string) (string, error) {
 		return "", err
 	}
 
-	// Map selection to actual shell path/name
 	switch {
-	case selected == options[0]: // Current shell
+	case selected == options[0]:
 		return currentShell, nil
 	case selected == "I'll choose one later":
 		return "", nil

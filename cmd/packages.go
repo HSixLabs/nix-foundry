@@ -11,6 +11,5 @@ func NewPackagesCmd() *cobra.Command {
 		Long:  `Commands for managing Nix packages.`,
 	}
 
-	// Add subcommands here if needed
 	return cmd
 }

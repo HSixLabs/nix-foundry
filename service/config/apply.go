@@ -25,11 +25,9 @@ func (a *ApplyService) ActivateConfig(configPath string) error {
 		return fmt.Errorf("failed to generate Nix configuration: %w", err)
 	}
 
-	// Get config directory from active config path
 	configDir := filepath.Dir(configPath)
 	nixDir := filepath.Join(configDir, "nix")
 
-	// Create nix config directory if it doesn't exist
 	if err := a.fs.CreateDir(nixDir); err != nil {
 		return fmt.Errorf("failed to create nix config directory: %w", err)
 	}
@@ -80,7 +78,6 @@ func (a *ApplyService) generateNixFromConfig(cfg schema.Config) string {
 	nixConfig += "        in pkgs.mkShell {\n"
 	nixConfig += "          packages = with pkgs; [\n"
 
-	// Add packages
 	for _, pkg := range cfg.Nix.Packages.Core {
 		nixConfig += fmt.Sprintf("            %s\n", pkg)
 	}

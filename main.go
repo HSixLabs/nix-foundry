@@ -18,9 +18,7 @@ const (
 func main() {
 	configService := config.NewConfigService(filesystem.NewOSFileSystem())
 
-	// Check for first run, but don't intercept help or version commands
 	if !configService.ConfigExists() && !isHelpCommand(os.Args[1:]) && !isSetupCommand(os.Args[1:]) {
-		// Ask user if they want to run setup
 		runSetup, err := configService.PromptForSetup()
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
@@ -51,7 +49,6 @@ func main() {
 		}
 	}
 
-	// Normal command execution
 	rootCmd := createRootCommand()
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -81,8 +78,6 @@ func createRootCommand() *cobra.Command {
 	}
 	rootCmd.AddCommand(
 		cmd.NewConfigCmd(),
-		// packages.NewPackagesCmd(),
-		// project.NewProjectCmd(),
 	)
 	return rootCmd
 }
