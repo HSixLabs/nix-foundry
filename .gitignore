@@ -1,7 +1,5 @@
 # Binary
-/nix-foundry
-/nixf
-/nf
+/nixg
 
 # Go specific
 *.exe
@@ -70,3 +68,4 @@ bin/
 
 # Home Manager generated files
 home-manager-generation*
+nix-foundry

@@ -1,0 +1,38 @@
+base: "./base-config.yaml"
+
+modules:
+  - name: "developer-tools"
+    type: "custom"
+    packages:
+      - "git"
+      - "neovim"
+    config:
+      shell: "zsh"
+      editor: "vscode"
+
+  - name: "shell-setup"
+    type: "shell"
+    config:
+      type: "zsh"
+      aliases:
+        ll: "ls -alh"
+        gs: "git status"
+    packages:
+      - "zsh"
+      - "oh-my-zsh"
+
+  - name: "python-dev"
+    type: "language"
+    config:
+      version: "3.11"
+      packageManager: "poetry"
+    packages:
+      - "python311"
+      - "poetry"
+
+nix:
+  channels:
+    - name: "nixpkgs"
+      url: "github:NixOS/nixpkgs/nixpkgs-unstable"
+  packages:
+    core: ["curl", "jq"]

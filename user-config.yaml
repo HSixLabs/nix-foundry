@@ -1,0 +1,26 @@
+base: "~/.config/team-base.yaml"
+
+modules:
+  - name: "my-shell"
+    type: "shell"
+    config:
+      type: "fish"
+      aliases:
+        gs: "git status"
+        gp: "git pull"
+    packages:
+      - "fish"
+      - "fisher"
+
+  - name: "go-tools"
+    type: "language"
+    config:
+      version: "1.21"
+      lsp: "gopls"
+    packages:
+      - "go_1_21"
+      - "gopls"
+
+nix:
+  packages:
+    core: ["htop", "jq"] # Personal core tools

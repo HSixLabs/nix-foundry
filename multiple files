@@ -1,4 +1,0 @@
-// testMode flag propagation preserved:
-// - Skips file operations in environment service
-// - Disables destructive actions in config service
-// - Bypasses user confirmation

@@ -12,6 +12,7 @@ linters:
     - typecheck    # Type checking
     - bodyclose    # HTTP response body closer
     - revive       # Drop-in replacement for golint
+    - gocyclo
 
 linters-settings:
   govet:

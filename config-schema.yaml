@@ -1,0 +1,22 @@
+version: "1.0"
+kind: project|team|user
+metadata:
+  name: string
+  description?: string
+base?: string
+modules?:
+  - name: string
+    type: string
+    config: { [key: string]: any }
+    packages?: [string]
+nix:
+  channels:
+    - name: string
+      url: string
+  packages:
+    core: [string]
+    optional: [string]
+settings:
+  autoUpdate: bool
+  updateInterval: duration
+  logLevel: info|debug|warn
