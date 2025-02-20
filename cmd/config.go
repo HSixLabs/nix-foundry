@@ -12,8 +12,10 @@ func NewConfigCmd() *cobra.Command {
 		Short: "Manage Nix configurations",
 	}
 
-	cmd.AddCommand(config.NewInitCmd())
+	cmd.AddCommand(config.NewSetCmd())
 	cmd.AddCommand(config.NewSetupCmd())
-
+	cmd.AddCommand(config.NewInitCmd())
+	cmd.AddCommand(config.NewApplyCmd())
+	cmd.AddCommand(config.NewUninstallCmd())
 	return cmd
 }

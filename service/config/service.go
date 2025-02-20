@@ -17,10 +17,8 @@ type ConfigService struct {
 	fs filesystem.FileSystem
 }
 
-func NewConfigService() *ConfigService {
-	return &ConfigService{
-		fs: filesystem.NewOSFileSystem(),
-	}
+func NewConfigService(fs filesystem.FileSystem) *ConfigService {
+	return &ConfigService{fs: fs}
 }
 
 func (s *ConfigService) InitConfig(kind, name string, force, newConfig bool, basePath string) error {
@@ -117,7 +115,7 @@ func (s *ConfigService) ValidateConfig(path string) error {
 }
 
 // UpdateActiveConfigWithPackages updates the active configuration with selected packages.
-func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, packages []string) error {
+func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, packages []string, selectedShell string) error {
 	// Read existing config
 	data, err := s.fs.ReadFile(activeConfigPath)
 	if err != nil {
@@ -131,9 +129,10 @@ func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, 
 
 	// Append selected packages to core packages
 	cfg.Nix.Packages.Core = append(cfg.Nix.Packages.Core, packages...)
+	cfg.Nix.Shell = selectedShell
 
 	// Remove duplicates
-	cfg.Nix.Packages.Core = unique(cfg.Nix.Packages.Core)
+	cfg.Nix.Packages.Core = Unique(cfg.Nix.Packages.Core)
 
 	// Marshal back to YAML
 	updatedData, err := yaml.Marshal(&cfg)
@@ -154,8 +153,8 @@ func (s *ConfigService) UpdateActiveConfigWithPackages(activeConfigPath string, 
 	return nil
 }
 
-// unique removes duplicate strings from a slice.
-func unique(slice []string) []string {
+// Unique removes duplicate strings from a slice.
+func Unique(slice []string) []string {
 	uniqueMap := make(map[string]struct{})
 	var result []string
 	for _, item := range slice {
@@ -178,15 +177,55 @@ func (s *ConfigService) ConfigExists() bool {
 
 func (s *ConfigService) PromptForSetup() (bool, error) {
 	prompt := &survey.Confirm{
-		Message: "Welcome to Nix Foundry! Would you like to run the interactive setup?",
+		Message: "\033[1mWelcome to Nix Foundry!\033[0m First-time setup is required. This will:\n" +
+			"- Create a default configuration file\n" +
+			"- Choose your initial packages\n" +
+			"- Choose your shell\n" +
+			"- Generate the required Nix files\n\n" +
+			"Note: This will \033[31mnot\033[0m make changes to your system until you run \033[36mnix-foundry apply\033[0m.\n\n" +
+			"Would you like to continue with the initial setup?",
 		Default: true,
 	}
 
 	var response bool
 	err := survey.AskOne(prompt, &response)
+	return response, err
+}
+
+func (s *ConfigService) ActiveConfigPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return false, fmt.Errorf("failed to get user input: %w", err)
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	return filepath.Join(homeDir, ".config", "nix-foundry", "config.yaml"), nil
+}
+
+// UpdateConfig applies modifications to an existing config file
+func (s *ConfigService) UpdateConfig(configPath string, updates ...UpdateFunc) error {
+	data, err := s.fs.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
 	}
 
-	return response, nil
+	var cfg schema.Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	for _, update := range updates {
+		update(&cfg)
+	}
+
+	updatedData, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated config: %w", err)
+	}
+
+	if err := s.fs.WriteFile(configPath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write updated config: %w", err)
+	}
+
+	return s.ValidateConfig(configPath)
 }
+
+type UpdateFunc func(*schema.Config)

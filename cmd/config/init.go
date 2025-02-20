@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 
+	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
 	"github.com/shawnkhoffman/nix-foundry/service/config"
 
 	"github.com/spf13/cobra"
@@ -26,7 +27,7 @@ Examples:
 			name := args[1]
 			base, _ := cmd.Flags().GetString("base")
 
-			svc := config.NewConfigService()
+			svc := config.NewConfigService(filesystem.NewOSFileSystem())
 			if err := svc.InitConfig(kind, name, force, newConfig, base); err != nil {
 				return fmt.Errorf("failed to initialize config: %w", err)
 			}

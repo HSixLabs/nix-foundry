@@ -30,6 +30,7 @@ type NixConfig struct {
 		Core     []string `yaml:"core" validate:"required"`
 		Optional []string `yaml:"optional,omitempty"`
 	} `yaml:"packages" validate:"required"`
+	Shell string `yaml:"shell,omitempty"`
 }
 
 type Channel struct {

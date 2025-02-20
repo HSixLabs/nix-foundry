@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
 	"github.com/shawnkhoffman/nix-foundry/service/config"
 
 	"github.com/spf13/cobra"
@@ -30,12 +32,39 @@ Examples:
   nix-foundry config setup --force`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			svc := config.NewConfigService()
+			svc := config.NewConfigService(filesystem.NewOSFileSystem())
 
+			// Detect and set shell
+			currentShell := os.Getenv("SHELL")
+			if currentShell == "" {
+				currentShell = "/bin/sh"
+			}
+
+			selectedShell, err := promptForShell(currentShell)
+			if err != nil {
+				return fmt.Errorf("failed to get shell selection: %w", err)
+			}
+
+			// Prompt user for additional package/tool selections
+			selectedPackages, err := promptForPackages()
+			if err != nil {
+				return fmt.Errorf("failed to get package selections: %w", err)
+			}
+
+			// Show confirmation with selections
+			confirmed, err := confirmSelections(selectedShell, selectedPackages)
+			if err != nil {
+				return fmt.Errorf("confirmation failed: %w", err)
+			}
+			if !confirmed {
+				return nil // No message here - handled in main
+			}
+
+			// Only AFTER confirmation do we create the config
 			// Define default configuration parameters
 			defaultKind := "user"
 			defaultName := "default"
-			basePath := "" // No base for initial setup
+			basePath := ""
 
 			// Initialize the default configuration
 			if err := svc.InitConfig(defaultKind, defaultName, force, false, basePath); err != nil {
@@ -55,19 +84,13 @@ Examples:
 				return fmt.Errorf("failed to set active config: %w", copyErr)
 			}
 
-			// Prompt user for additional package/tool selections
-			selectedPackages, err := promptForPackages()
-			if err != nil {
-				return fmt.Errorf("failed to get package selections: %w", err)
-			}
-
 			// Update the active configuration with selected packages
-			if err := svc.UpdateActiveConfigWithPackages(activeConfigPath, selectedPackages); err != nil {
+			if err := svc.UpdateActiveConfigWithPackages(activeConfigPath, selectedPackages, selectedShell); err != nil {
 				return fmt.Errorf("failed to update active config with packages: %w", err)
 			}
 
-			fmt.Println("Successfully set up the initial configuration at ~/.config/nix-foundry/config.yaml")
-			fmt.Println("You can customize your configuration further by modifying the config.yaml file or using the CLI commands.")
+			fmt.Println("Successfully set up the initial configuration at \033[33m~/.config/nix-foundry/config.yaml\033[0m")
+			fmt.Println("You can customize your configuration further by modifying the \033[33mconfig.yaml\033[0m file or using the CLI commands.")
 			return nil
 		},
 	}
@@ -93,7 +116,7 @@ func promptForPackages() ([]string, error) {
 	}
 
 	prompt := &survey.MultiSelect{
-		Message: "Select the common packages and tools you'd like to include in your configuration:",
+		Message: "Select the packages and tools you'd like to start with:",
 		Options: commonPackages,
 	}
 
@@ -104,4 +127,66 @@ func promptForPackages() ([]string, error) {
 
 	fmt.Println("You can add or remove packages later by modifying your configuration or using the CLI.")
 	return selected, nil
+}
+
+func promptForShell(currentShell string) (string, error) {
+	baseName := filepath.Base(currentShell)
+	// Clean up shell name for display
+	cleanName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+	cleanName = strings.Split(cleanName, "-")[0]
+
+	options := []string{
+		fmt.Sprintf("Current shell (%s)", cleanName),
+		"zsh",
+		"fish",
+		"bash",
+		"I'll choose one later",
+	}
+
+	var selected string
+	prompt := &survey.Select{
+		Message: "Choose your development shell:",
+		Options: options,
+		Default: options[0],
+	}
+
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return "", err
+	}
+
+	// Map selection to actual shell path/name
+	switch {
+	case selected == options[0]: // Current shell
+		return currentShell, nil
+	case selected == "I'll choose one later":
+		return "", nil
+	default:
+		return selected, nil
+	}
+}
+
+func confirmSelections(shell string, packages []string) (bool, error) {
+	baseShell := filepath.Base(shell)
+	if shell == "" {
+		baseShell = "not selected"
+	}
+
+	message := fmt.Sprintf(
+		"\033[1mAbout to apply configuration with:\033[0m\n\n"+
+			"- Shell: \033[36m%s\033[0m\n"+
+			"- Packages: \033[36m%s\033[0m\n\n"+
+			"(You'll be able to change these later)\n\n"+
+			"Would you like to proceed?",
+		baseShell,
+		packages,
+	)
+
+	var confirm bool
+	prompt := &survey.Confirm{
+		Message: message,
+		Default: true,
+	}
+
+	err := survey.AskOne(prompt, &confirm)
+	return confirm, err
 }

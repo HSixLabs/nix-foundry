@@ -9,6 +9,8 @@ type FileSystem interface {
 	CreateDir(path string) error
 	WriteFile(name string, data []byte, perm os.FileMode) error
 	ReadFile(name string) ([]byte, error)
+	Remove(path string) error
+	RemoveAll(path string) error
 }
 
 type OSFileSystem struct{}
@@ -32,4 +34,12 @@ func (fs *OSFileSystem) WriteFile(name string, data []byte, perm os.FileMode) er
 
 func (fs *OSFileSystem) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(name)
+}
+
+func (fs *OSFileSystem) Remove(path string) error {
+	return os.Remove(path)
+}
+
+func (fs *OSFileSystem) RemoveAll(path string) error {
+	return os.RemoveAll(path)
 }

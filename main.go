@@ -5,13 +5,18 @@ import (
 	"os"
 
 	"github.com/shawnkhoffman/nix-foundry/cmd"
+	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
 	"github.com/shawnkhoffman/nix-foundry/service/config"
-
 	"github.com/spf13/cobra"
 )
 
+const (
+	setupRequiredMsg = "🚫 Initial setup is required to use Nix Foundry."
+	setupSuccessMsg  = "\n✅ Setup completed successfully! You can now use all Nix Foundry features."
+)
+
 func main() {
-	configService := config.NewConfigService()
+	configService := config.NewConfigService(filesystem.NewOSFileSystem())
 
 	// Check for first run, but don't intercept help or version commands
 	if !configService.ConfigExists() && !isHelpCommand(os.Args[1:]) && !isSetupCommand(os.Args[1:]) {
@@ -23,17 +28,26 @@ func main() {
 		}
 
 		if runSetup {
-			fmt.Println("Starting initial setup...")
+			fmt.Println("\nStarting initial setup...")
 			setupCmd := getSetupCommand()
 			if err := setupCmd.Execute(); err != nil {
 				fmt.Printf("Setup failed: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("\nSetup completed successfully! You can now use all Nix Foundry features.")
-			fmt.Println("Try running 'nix-foundry --help' to see available commands.")
+			if configService.ConfigExists() {
+				fmt.Println(setupSuccessMsg)
+				fmt.Println("\nYou can run this setup again later with: \033[36mnix-foundry config setup\033[0m")
+				fmt.Println("To apply the configuration, run: \033[36mnix-foundry apply\033[0m")
+				fmt.Println("\nTry \033[36mnix-foundry --help\033[0m to see available commands.")
+			} else {
+				fmt.Println(setupRequiredMsg)
+				os.Exit(1)
+			}
 			return
 		} else {
-			fmt.Println("\nSkipping setup. You can run setup later with: nix-foundry config setup")
+			fmt.Println("\nExiting...")
+			fmt.Println(setupRequiredMsg)
+			os.Exit(1)
 		}
 	}
 
@@ -65,6 +79,10 @@ func createRootCommand() *cobra.Command {
 		Short: "Nix configuration management tool",
 		Long:  `Nix Foundry - Powerful CLI for Nix configuration management.`,
 	}
-	rootCmd.AddCommand(cmd.NewConfigCmd())
+	rootCmd.AddCommand(
+		cmd.NewConfigCmd(),
+		// packages.NewPackagesCmd(),
+		// project.NewProjectCmd(),
+	)
 	return rootCmd
 }
