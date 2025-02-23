@@ -1,45 +1,97 @@
+// Package filesystem provides filesystem abstraction.
 package filesystem
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 )
 
+// FileSystem provides an interface for filesystem operations.
 type FileSystem interface {
-	Exists(path string) bool
-	CreateDir(path string) error
-	WriteFile(name string, data []byte, perm os.FileMode) error
-	ReadFile(name string) ([]byte, error)
+	ReadFile(path string) ([]byte, error)
+	WriteFile(path string, data []byte, perm os.FileMode) error
 	Remove(path string) error
-	RemoveAll(path string) error
+	MkdirAll(path string, perm os.FileMode) error
+	CreateDir(path string) error
+	Exists(path string) bool
+	Copy(src, dst string) error
 }
 
+// OSFileSystem implements FileSystem using the OS filesystem.
 type OSFileSystem struct{}
 
-func NewOSFileSystem() *OSFileSystem {
+// NewOSFileSystem creates a new OS filesystem.
+func NewOSFileSystem() FileSystem {
 	return &OSFileSystem{}
 }
 
+// ReadFile reads a file from disk.
+func (fs *OSFileSystem) ReadFile(path string) ([]byte, error) {
+	return os.ReadFile(path)
+}
+
+// WriteFile writes data to a file.
+func (fs *OSFileSystem) WriteFile(path string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(path, data, perm)
+}
+
+// Remove removes a file or directory.
+func (fs *OSFileSystem) Remove(path string) error {
+	return os.Remove(path)
+}
+
+// MkdirAll creates a directory and any necessary parents.
+func (fs *OSFileSystem) MkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+
+// CreateDir creates a directory if it doesn't exist.
+func (fs *OSFileSystem) CreateDir(path string) error {
+	if !fs.Exists(path) {
+		return os.MkdirAll(path, 0755)
+	}
+	return nil
+}
+
+// Exists checks if a path exists.
 func (fs *OSFileSystem) Exists(path string) bool {
 	_, err := os.Stat(path)
 	return !os.IsNotExist(err)
 }
 
-func (fs *OSFileSystem) CreateDir(path string) error {
-	return os.MkdirAll(path, 0755)
-}
+// Copy copies a file from src to dst.
+func (fs *OSFileSystem) Copy(src, dst string) error {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
 
-func (fs *OSFileSystem) WriteFile(name string, data []byte, perm os.FileMode) error {
-	return os.WriteFile(name, data, perm)
-}
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", src)
+	}
 
-func (fs *OSFileSystem) ReadFile(name string) ([]byte, error) {
-	return os.ReadFile(name)
-}
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
 
-func (fs *OSFileSystem) Remove(path string) error {
-	return os.Remove(path)
-}
+	if err := fs.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
 
-func (fs *OSFileSystem) RemoveAll(path string) error {
-	return os.RemoveAll(path)
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	if err != nil {
+		return err
+	}
+
+	return os.Chmod(dst, sourceFileStat.Mode())
 }

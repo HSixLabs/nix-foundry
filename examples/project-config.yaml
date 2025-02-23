@@ -1,38 +1,73 @@
-base: "./base-config.yaml"
-
-modules:
-  - name: "developer-tools"
-    type: "custom"
-    packages:
-      - "git"
-      - "neovim"
-    config:
-      shell: "zsh"
-      editor: "vscode"
-
-  - name: "shell-setup"
-    type: "shell"
-    config:
-      type: "zsh"
-      aliases:
-        ll: "ls -alh"
-        gs: "git status"
-    packages:
-      - "zsh"
-      - "oh-my-zsh"
-
-  - name: "python-dev"
-    type: "language"
-    config:
-      version: "3.11"
-      packageManager: "poetry"
-    packages:
-      - "python311"
-      - "poetry"
-
+version: v1
+kind: NixConfig
+metadata:
+  name: example-project
+  description: Example development environment configuration
+  created: 2025-02-23T02:26:02-06:00
+  updated: 2025-02-23T02:26:02-06:00
+settings:
+  shell: zsh
+  logLevel: info
+  autoUpdate: true
+  updateInterval: 24h
 nix:
-  channels:
-    - name: "nixpkgs"
-      url: "github:NixOS/nixpkgs/nixpkgs-unstable"
+  manager: nix-env
   packages:
-    core: ["curl", "jq"]
+    core:
+      - git
+      - curl
+      - wget
+      - ripgrep
+      - jq
+    optional:
+      - neovim
+      - tmux
+      - fzf
+      - bat
+      - exa
+      - fd
+      - direnv
+      - gh
+  scripts:
+    - name: Setup Development Environment
+      description: Configures development tools and shell environment
+      commands: |
+        #!/usr/bin/env bash
+
+        # Install and configure Neovim
+        nix-env -iA nixpkgs.neovim
+        mkdir -p ~/.config/nvim
+
+        # Setup Git configuration
+        git config --global core.editor "nvim"
+        git config --global init.defaultBranch main
+
+        # Configure fzf
+        [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+        # Setup direnv
+        echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
+
+        # Configure ripgrep
+        echo 'export RIPGREP_CONFIG_PATH=$HOME/.ripgreprc' >> ~/.zshrc
+
+        echo "Development environment setup complete!"
+
+    - name: Setup Shell
+      description: Configures Zsh with plugins and theme
+      commands: |
+        #!/usr/bin/env bash
+
+        # Install Oh My Zsh
+        RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+        # Install powerlevel10k theme
+        git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k
+
+        # Configure theme
+        sed -i '' 's/ZSH_THEME="[^"]*"/ZSH_THEME="powerlevel10k\/powerlevel10k"/' ~/.zshrc
+
+        # Add useful plugins
+        sed -i '' 's/plugins=(git)/plugins=(git docker kubectl fzf ripgrep)/' ~/.zshrc
+
+        echo "Shell configuration complete!"

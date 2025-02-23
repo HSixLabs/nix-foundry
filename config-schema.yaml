@@ -1,22 +1,21 @@
-version: "1.0"
-kind: project|team|user
+version: string # v1
+kind: string # NixConfig
 metadata:
   name: string
-  description?: string
-base?: string
-modules?:
-  - name: string
-    type: string
-    config: { [key: string]: any }
-    packages?: [string]
-nix:
-  channels:
-    - name: string
-      url: string
-  packages:
-    core: [string]
-    optional: [string]
+  description: string
+  created: timestamp
+  updated: timestamp
 settings:
-  autoUpdate: bool
-  updateInterval: duration
-  logLevel: info|debug|warn
+  shell: string # bash|zsh|fish
+  logLevel: string # info|debug|warn|error
+  autoUpdate: boolean
+  updateInterval: duration # e.g., 24h
+nix:
+  manager: string # nix-env
+  packages:
+    core: [string] # Required, non-empty
+    optional?: [string] # Optional packages
+  scripts?:
+    - name: string
+      description?: string
+      commands: string # Multiline string with | style

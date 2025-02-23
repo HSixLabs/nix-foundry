@@ -1,66 +1,28 @@
-name: Release
+name: Release Management
 
 on:
   push:
     branches: [ main ]
 
-permissions:
-  contents: write
-  pull-requests: read
-
 jobs:
   release:
+    name: Semantic Release
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Get version
-        id: version
-        run: |
-          # Get latest tag or default to v0.0.0
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $latest_tag"
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
 
-          # Remove v prefix and split into components
-          version=${latest_tag#v}
-          IFS='.' read -r major minor patch <<< "$version"
+    - name: Install dependencies
+      run: npm install -g semantic-release @semantic-release/git @semantic-release/changelog @semantic-release/exec
 
-          # Ensure variables are numbers
-          major=${major:-0}
-          minor=${minor:-0}
-          patch=${patch:-0}
-
-          # Increment patch version
-          patch=$((patch + 1))
-
-          # Create new version string
-          new_version="v${major}.${minor}.${patch}"
-          echo "New version: $new_version"
-          echo "version=$new_version" >> $GITHUB_OUTPUT
-          echo "version_type=patch" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
-        with:
-          configuration: ".github/changelog-config.json"
-          fromTag: ${{ steps.version.outputs.version }}
-          toTag: ${{ github.sha }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          body: |
-            ## Version Type: ${{ steps.version.outputs.version_type }}
-
-            ${{ steps.changelog.outputs.changelog }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: npx semantic-release
