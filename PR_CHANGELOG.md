@@ -43,6 +43,7 @@ feat!: Release v1
 feat!: Release v1
 feat!: Release v1
 feat!: Release v1
+feat!: Release v1
 
 ### Features
 
@@ -52,6 +53,9 @@ fix: lint errors and git hooks
 ### Performance Improvements
 
 ### Other Changes
+
+[RELEASE] v1.0.0-beta.2
+
 
 [RELEASE] v1.0.0-beta.1
 
