@@ -5,19 +5,13 @@ on:
     workflows: ["CI"]
     types:
       - completed
-    branches:
-      - main
-      - 'feat/*'
-      - 'fix/*'
-      - 'perf/*'
-      - 'refactor/*'
 
 jobs:
   beta-release:
     # Only run for PRs when CI passes
     if: |
       github.event.workflow_run.conclusion == 'success' &&
-      !contains(github.event.workflow_run.head_branch, 'main')
+      github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -133,10 +127,10 @@ jobs:
             })
 
   official-release:
-    # Only run for main branch when CI passes
+    # Only run for pushes to main when CI passes
     if: |
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.event == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
