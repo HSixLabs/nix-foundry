@@ -133,29 +133,46 @@ jobs:
                   sed -i "s|^module.*|module ${MODULE_PATH}|" go.mod
 
                   # Generate changelog
-                  echo "## [${NEW_VERSION}] - $(date +%Y-%m-%d)" > CHANGELOG.new.md
-                  echo "" >> CHANGELOG.new.md
+                  {
+                    echo "## [${NEW_VERSION}] - $(date +%Y-%m-%d)"
+                    echo
 
-                  # Group commits by type
-                  echo "### Breaking Changes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" >> CHANGELOG.new.md || true
-                  echo "" >> CHANGELOG.new.md
+                    # Group commits by type
+                    BREAKING_CHANGES=$(echo "$COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" || true)
+                    if [ ! -z "$BREAKING_CHANGES" ]; then
+                      echo "### Breaking Changes"
+                      echo "$BREAKING_CHANGES"
+                      echo
+                    fi
 
-                  echo "### Features" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^feat:" >> CHANGELOG.new.md || true
-                  echo "" >> CHANGELOG.new.md
+                    FEATURES=$(echo "$COMMITS" | grep "^feat:" || true)
+                    if [ ! -z "$FEATURES" ]; then
+                      echo "### Features"
+                      echo "$FEATURES"
+                      echo
+                    fi
 
-                  echo "### Bug Fixes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^fix:" >> CHANGELOG.new.md || true
-                  echo "" >> CHANGELOG.new.md
+                    FIXES=$(echo "$COMMITS" | grep "^fix:" || true)
+                    if [ ! -z "$FIXES" ]; then
+                      echo "### Bug Fixes"
+                      echo "$FIXES"
+                      echo
+                    fi
 
-                  echo "### Performance Improvements" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^perf:" >> CHANGELOG.new.md || true
-                  echo "" >> CHANGELOG.new.md
+                    PERF=$(echo "$COMMITS" | grep "^perf:" || true)
+                    if [ ! -z "$PERF" ]; then
+                      echo "### Performance Improvements"
+                      echo "$PERF"
+                      echo
+                    fi
 
-                  echo "### Other Changes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" >> CHANGELOG.new.md || true
-                  echo "" >> CHANGELOG.new.md
+                    OTHER=$(echo "$COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" || true)
+                    if [ ! -z "$OTHER" ]; then
+                      echo "### Other Changes"
+                      echo "$OTHER"
+                      echo
+                    fi
+                  } > CHANGELOG.new.md
 
                   # Prepend new changelog to existing one
                   if [ -f CHANGELOG.md ]; then
@@ -186,7 +203,7 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-                  git push origin main
+                  # Only push the tag, since changes are already on main through PR merge
                   git push origin "v${{ steps.version.outputs.new_version }}"
 
             - name: Build Release Binaries

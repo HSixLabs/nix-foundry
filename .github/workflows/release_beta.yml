@@ -132,36 +132,46 @@ jobs:
                   echo "Beta version: ${BETA_VERSION}"
 
                   # Generate changelog for PR
-                  CHANGELOG=""
-                  CHANGELOG+="## Changes in this Beta Release\n\n"
+                  {
+                    echo "## Changes in this Beta Release"
+                    echo
 
-                  # Group commits by type
-                  BREAKING_CHANGES=$(echo "$PR_COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" || true)
-                  if [ ! -z "$BREAKING_CHANGES" ]; then
-                    CHANGELOG+="### Breaking Changes\n${BREAKING_CHANGES}\n\n"
-                  fi
+                    # Group commits by type
+                    BREAKING_CHANGES=$(echo "$PR_COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" || true)
+                    if [ ! -z "$BREAKING_CHANGES" ]; then
+                      echo "### Breaking Changes"
+                      echo "$BREAKING_CHANGES"
+                      echo
+                    fi
 
-                  FEATURES=$(echo "$PR_COMMITS" | grep "^feat:" || true)
-                  if [ ! -z "$FEATURES" ]; then
-                    CHANGELOG+="### Features\n${FEATURES}\n\n"
-                  fi
+                    FEATURES=$(echo "$PR_COMMITS" | grep "^feat:" || true)
+                    if [ ! -z "$FEATURES" ]; then
+                      echo "### Features"
+                      echo "$FEATURES"
+                      echo
+                    fi
 
-                  FIXES=$(echo "$PR_COMMITS" | grep "^fix:" || true)
-                  if [ ! -z "$FIXES" ]; then
-                    CHANGELOG+="### Bug Fixes\n${FIXES}\n\n"
-                  fi
+                    FIXES=$(echo "$PR_COMMITS" | grep "^fix:" || true)
+                    if [ ! -z "$FIXES" ]; then
+                      echo "### Bug Fixes"
+                      echo "$FIXES"
+                      echo
+                    fi
 
-                  PERF=$(echo "$PR_COMMITS" | grep "^perf:" || true)
-                  if [ ! -z "$PERF" ]; then
-                    CHANGELOG+="### Performance Improvements\n${PERF}\n\n"
-                  fi
+                    PERF=$(echo "$PR_COMMITS" | grep "^perf:" || true)
+                    if [ ! -z "$PERF" ]; then
+                      echo "### Performance Improvements"
+                      echo "$PERF"
+                      echo
+                    fi
 
-                  OTHER=$(echo "$PR_COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" || true)
-                  if [ ! -z "$OTHER" ]; then
-                    CHANGELOG+="### Other Changes\n${OTHER}\n\n"
-                  fi
-
-                  echo "$CHANGELOG" > temp_changelog.txt
+                    OTHER=$(echo "$PR_COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" || true)
+                    if [ ! -z "$OTHER" ]; then
+                      echo "### Other Changes"
+                      echo "$OTHER"
+                      echo
+                    fi
+                  } > temp_changelog.txt
 
                   # Build and test with new version
                   go build -v ./...
