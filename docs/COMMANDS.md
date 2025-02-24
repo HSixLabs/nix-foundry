@@ -23,6 +23,7 @@ Detailed documentation for each command is available in the [commands](./command
 ## Common Options
 
 All commands support:
+
 - `--verbose, -v` - Enable verbose output
 - `--help, -h` - Show help for any command
 

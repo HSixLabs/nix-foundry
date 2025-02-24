@@ -60,14 +60,14 @@ nix-foundry apply
 ## Example Configuration
 
 ```yaml
-version: "v1"
-kind: "NixConfig"
-type: "project"
+version: 'v1'
+kind: 'NixConfig'
+type: 'project'
 metadata:
-  name: "web-dev"
-  description: "Web development environment"
+  name: 'web-dev'
+  description: 'Web development environment'
 settings:
-  shell: "zsh"
+  shell: 'zsh'
   autoUpdate: true
 nix:
   packages:

@@ -74,16 +74,19 @@ All platforms require:
 ## Platform-Specific Features
 
 ### Linux
+
 - Native container support
 - Full systemd integration
 - Direct hardware access
 
 ### macOS
+
 - Native ARM package support
 - Automatic Rosetta 2 integration
 - Seamless GUI application support
 
 ### WSL2
+
 - Windows path integration
 - Automatic port forwarding
 - WSLg support for GUI applications

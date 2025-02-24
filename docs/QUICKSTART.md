@@ -3,6 +3,7 @@
 ## Installation
 
 1. Install Nix Foundry:
+
    ```bash
    nix-foundry install
    ```
@@ -25,6 +26,7 @@ This creates a default configuration in `~/.config/nix-foundry/config.yaml`.
 ### Install Packages
 
 1. Install a single package:
+
    ```bash
    nix-foundry config set package add nodejs
    ```
@@ -39,6 +41,7 @@ This creates a default configuration in `~/.config/nix-foundry/config.yaml`.
 ### Managing Packages
 
 - List available packages:
+
   ```bash
   nix-foundry config show packages
   ```
@@ -51,6 +54,7 @@ This creates a default configuration in `~/.config/nix-foundry/config.yaml`.
 ### Managing Shell
 
 - Set default shell:
+
   ```bash
   nix-foundry config set shell zsh
   ```

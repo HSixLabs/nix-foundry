@@ -16,14 +16,15 @@ repos:
     rev: v1.64.4
     hooks:
       - id: golangci-lint
-        args: [
-          "--fix",
-          "--timeout=5m",
-          "--config=.golangci.yml",
-          "./cmd/...",
-          "./pkg/...",
-          "./service/..."
-        ]
+        args:
+          [
+            '--fix',
+            '--timeout=5m',
+            '--config=.golangci.yml',
+            './cmd/...',
+            './pkg/...',
+            './service/...',
+          ]
         pass_filenames: false
 
   - repo: local

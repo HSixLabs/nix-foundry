@@ -5,13 +5,14 @@ Nix Foundry provides access to the entire Nixpkgs collection through a simple YA
 ## Configuration
 
 Define your packages in your configuration file:
+
 ```yaml
 nix:
   packages:
     core:
-      - git    # Required packages
+      - git # Required packages
       - curl
-    optional:  # Additional packages
+    optional: # Additional packages
       - nodejs_20
       - any-nixpkgs-package
 ```
@@ -21,6 +22,7 @@ nix:
 During installation, Nix Foundry provides a wizard to help you select common development tools:
 
 ### Programming Languages
+
 - Python (python311 with pip)
 - Node.js (nodejs_20 with npm)
 - Go (go_1_22 with gopls)
@@ -28,6 +30,7 @@ During installation, Nix Foundry provides a wizard to help you select common dev
 - C/C++ (gcc with make)
 
 ### Development Tools
+
 - Git (git)
 - Docker (docker)
 - Kubernetes CLI (kubectl)
@@ -35,6 +38,7 @@ During installation, Nix Foundry provides a wizard to help you select common dev
 - GitHub CLI (gh)
 
 ### Editors
+
 - VS Code (vscode)
 - IntelliJ IDEA Community (jetbrains.idea-community)
 - Neovim
@@ -59,6 +63,7 @@ nix-foundry config apply
 ## Platform Support
 
 Packages are automatically handled based on your platform:
+
 - Linux: Native package names
 - macOS: Intel and ARM packages automatically selected
 - WSL2: Linux packages with Windows integration

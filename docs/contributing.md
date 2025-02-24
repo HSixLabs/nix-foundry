@@ -3,12 +3,14 @@
 ## Development Setup
 
 1. Fork and clone the repository:
+
    ```bash
    git clone https://github.com/yourusername/nix-foundry.git
    cd nix-foundry
    ```
 
 2. Install dependencies:
+
    ```bash
    go mod download
    ```
@@ -28,17 +30,20 @@
 ## Pull Request Process
 
 1. Create a feature branch:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
 2. Make your changes and commit:
+
    ```bash
    git add .
    git commit -m "feat: add your feature"
    ```
 
 3. Push to your fork:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -77,3 +82,4 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - Run doc generation:
   ```bash
   go run scripts/gendocs.go
+  ```

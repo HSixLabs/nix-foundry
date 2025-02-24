@@ -2,16 +2,16 @@ linters:
   disable-all: true
   enable:
     # Production-ready, widely used linters
-    - gofmt        # Standard Go formatter
-    - govet        # Official Go vet tool
-    - errcheck     # Error handling checker
-    - staticcheck  # Advanced static analysis
-    - gosimple     # Code simplification
-    - ineffassign  # Ineffective assignments
-    - unused       # Unused code
-    - typecheck    # Type checking
-    - bodyclose    # HTTP response body closer
-    - revive       # Drop-in replacement for golint
+    - gofmt # Standard Go formatter
+    - govet # Official Go vet tool
+    - errcheck # Error handling checker
+    - staticcheck # Advanced static analysis
+    - gosimple # Code simplification
+    - ineffassign # Ineffective assignments
+    - unused # Unused code
+    - typecheck # Type checking
+    - bodyclose # HTTP response body closer
+    - revive # Drop-in replacement for golint
     - gocyclo
 
 linters-settings:

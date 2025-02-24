@@ -1,26 +1,26 @@
-base: "~/.config/team-base.yaml"
+base: '~/.config/team-base.yaml'
 
 modules:
-  - name: "my-shell"
-    type: "shell"
+  - name: 'my-shell'
+    type: 'shell'
     config:
-      type: "fish"
+      type: 'fish'
       aliases:
-        gs: "git status"
-        gp: "git pull"
+        gs: 'git status'
+        gp: 'git pull'
     packages:
-      - "fish"
-      - "fisher"
+      - 'fish'
+      - 'fisher'
 
-  - name: "go-tools"
-    type: "language"
+  - name: 'go-tools'
+    type: 'language'
     config:
-      version: "1.21"
-      lsp: "gopls"
+      version: '1.21'
+      lsp: 'gopls'
     packages:
-      - "go_1_21"
-      - "gopls"
+      - 'go_1_21'
+      - 'gopls'
 
 nix:
   packages:
-    core: ["htop", "jq"] # Personal core tools
+    core: ['htop', 'jq'] # Personal core tools

@@ -1,71 +1,14 @@
-# Binary
-/nixg
-
-# Go specific
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
+# Go
 .go/
-go.work
-
-# Development environment
-.env
-.envrc
-.direnv/
-result
-result-*
-
-# Editor and IDE files
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# macOS specific
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Nix specific
-.nix-shell/
-.nix-profile/
-
-# Testing and coverage
-coverage.txt
-coverage.html
-*.cover
-*.coverprofile
-
-# Project specific
-.config/
-backups/
-tmp/
-
-# Pre-commit
-.pre-commit-config.yaml.cache
-
-# Build artifacts
-dist/
 bin/
 
-# Logs
-*.log
-
-# Local environment files
-.env.local
-
-# Temporary files
-*.tmp
-*.temp
-
-# Nix garbage collection roots
-/nix/var/nix/gcroots/
-
-# Home Manager generated files
-home-manager-generation*
+# Nix
 nix-foundry
+dist/
+.idea/
+.vscode/
+.DS_Store
+
+# Node.js
+node_modules/
+package-lock.json

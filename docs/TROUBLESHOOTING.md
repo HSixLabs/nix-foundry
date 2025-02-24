@@ -9,6 +9,7 @@ Common issues and solutions when using Nix Foundry.
 **Problem**: Permission denied during multi-user installation.
 
 **Solution**:
+
 ```bash
 # Run with sudo for multi-user mode
 sudo nix-foundry install --multi-user
@@ -19,6 +20,7 @@ sudo nix-foundry install --multi-user
 **Problem**: Configuration directory not accessible.
 
 **Solution**:
+
 ```bash
 # Check directory permissions
 ls -la ~/.config/nix-foundry
@@ -33,6 +35,7 @@ chmod 755 ~/.config/nix-foundry
 **Problem**: Configuration validation fails.
 
 **Solution**:
+
 ```bash
 # Reset to default configuration
 nix-foundry config init
@@ -46,6 +49,7 @@ nix-foundry config show
 **Problem**: Configuration file missing.
 
 **Solution**:
+
 ```bash
 # Initialize new configuration
 nix-foundry config init
@@ -64,7 +68,9 @@ nix-foundry config init --type project
 **Problem**: Package installation through config apply fails.
 
 **Solution**:
+
 1. Verify configuration:
+
    ```bash
    nix-foundry config show
    ```
@@ -79,7 +85,9 @@ nix-foundry config init --type project
 **Problem**: Shell not properly configured.
 
 **Solution**:
+
 1. Set shell in configuration:
+
    ```bash
    nix-foundry config set shell zsh
    ```
