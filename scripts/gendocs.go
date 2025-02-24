@@ -24,12 +24,12 @@ It uses Cobra's built-in doc generation to create markdown files
 for each command in the CLI.
 */
 func generateDocs() error {
-	if err := os.MkdirAll("docs", 0755); err != nil {
+	if err := os.MkdirAll("docs/commands", 0755); err != nil {
 		return fmt.Errorf("failed to create docs directory: %w", err)
 	}
 
 	root := cmd.GetRootCommand()
-	if err := doc.GenMarkdownTree(root, "docs"); err != nil {
+	if err := doc.GenMarkdownTree(root, "docs/commands"); err != nil {
 		return fmt.Errorf("failed to generate command documentation: %w", err)
 	}
 
