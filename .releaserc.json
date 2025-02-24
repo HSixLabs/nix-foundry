@@ -2,8 +2,14 @@
   "branches": [
     "main",
     {
+      "name": "pr-*",
+      "prerelease": true,
+      "channel": "beta"
+    },
+    {
       "name": "+(feat|fix|perf|refactor)/*",
-      "prerelease": true
+      "prerelease": "${name.replace(/\\//g, '-')}",
+      "channel": "beta"
     }
   ],
   "plugins": [
@@ -47,17 +53,15 @@
           { "path": "nix-foundry-darwin-amd64", "label": "macOS x64 Binary" },
           { "path": "nix-foundry-darwin-arm64", "label": "macOS ARM64 Binary" }
         ],
-        "successComment": true,
-        "failComment": true,
-        "failTitle": "Release Failed",
-        "labels": ["release"],
-        "releasedLabels": ["released"]
+        "successComment": false,
+        "releasedLabels": false
       }
     ],
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64 && GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64 && GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64"
+        "prepareCmd": "GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64 && GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64 && GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64",
+        "publishCmd": "echo 'Triggering beta release for PR-${{ github.event.pull_request.number }}'"
       }
     ]
   ]
