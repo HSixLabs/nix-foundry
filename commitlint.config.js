@@ -12,8 +12,10 @@ module.exports = {
         'refactor',
         'perf',
         'test',
-        'chore',
+        'build',
         'ci',
+        'deps',
+        'go',
         'revert'
       ]
     ],
@@ -21,6 +23,8 @@ module.exports = {
     'type-empty': [2, 'never'],
     'subject-empty': [2, 'never'],
     'subject-full-stop': [2, 'never', '.'],
-    'subject-case': [0]
+    'subject-case': [0],
+    'scope-enum': [2, 'always', ['api', 'deps', 'mod']],
+    'scope-case': [2, 'always', 'lower-case']
   }
 };

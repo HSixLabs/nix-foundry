@@ -6,13 +6,44 @@ All notable changes to this project will be documented in this file. See [semant
 
 ## Commit Types
 
-- **feat**: A new feature (minor version bump)
-- **fix**: A bug fix (patch version bump)
-- **perf**: A performance improvement (patch version bump)
-- **docs**: Documentation changes (patch version bump)
-- **refactor**: Code refactoring (patch version bump)
-- **build**: Build system changes (patch version bump)
-- **style**: Code style changes (no version bump)
-- **test**: Test changes (no version bump)
-- **ci**: CI changes (no version bump)
-- **chore(deps)**: Dependency updates (patch version bump)
+### Major Version Bumps (Breaking Changes)
+Breaking changes can be indicated in two ways:
+
+1. Using `!` after the type:
+```
+feat!: change configuration file format
+fix!: remove deprecated API
+```
+
+2. Using `BREAKING CHANGE` in the commit body:
+```
+feat: change configuration file format
+
+BREAKING CHANGE: The configuration file format has changed from YAML to TOML.
+Old config files will need to be migrated.
+```
+
+### Minor Version Bumps
+- **feat**: A new feature
+- **feat(api)**: API-related features
+
+### Patch Version Bumps
+- **fix**: A bug fix
+- **perf**: A performance improvement
+- **docs**: Documentation changes
+- **refactor**: Code refactoring
+- **build**: Build system changes
+- **deps**: Dependency updates
+- **go**: Go-specific changes
+- **go(mod)**: Go module updates
+
+### No Version Bump
+- **style**: Code style changes
+- **test**: Test changes
+- **ci**: CI changes
+
+## Installation
+
+Using curl:
+```bash
+curl -L https://nixfoundry.org/install | bash
