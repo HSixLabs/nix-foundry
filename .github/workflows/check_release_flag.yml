@@ -42,37 +42,35 @@ jobs:
 
             // Get the latest commit message
             const execSync = require('child_process').execSync;
-            const latestCommit = execSync('git log -1 --pretty=format:%s').toString().toLowerCase();
+            const latestCommit = execSync('git log -1 --pretty=format:%s').toString();
             console.log('Latest commit:', latestCommit);
 
             // Valid scopes from commitlint config
-            const validScopes = ['deps', 'mod'];
+            const validScopes = ['api', 'deps', 'mod'];
             const scopeRegex = `(?:\\((?:${validScopes.join('|')})?\\))?`;
 
             let releaseType = '';
 
             // Check for breaking changes
             if (
-              latestCommit.match(new RegExp(`^feat${scopeRegex}!:`)) ||
-              latestCommit.match(new RegExp(`^fix${scopeRegex}!:`)) ||
-              latestCommit.includes('breaking change:')
+              latestCommit.startsWith('feat!:') ||
+              latestCommit.startsWith('fix!:') ||
+              latestCommit.includes('BREAKING CHANGE:')
             ) {
               releaseType = 'major';
             }
             // Check for features
-            else if (
-              latestCommit.match(new RegExp(`^feat${scopeRegex}:`))
-            ) {
+            else if (latestCommit.startsWith('feat:')) {
               releaseType = 'minor';
             }
             // Check for patches
             else if (
-              latestCommit.match(new RegExp(`^fix${scopeRegex}:`)) ||
-              latestCommit.match(new RegExp(`^perf${scopeRegex}:`)) ||
-              latestCommit.match(new RegExp(`^refactor${scopeRegex}:`)) ||
-              latestCommit.match(new RegExp(`^build${scopeRegex}:`)) ||
-              latestCommit.match(new RegExp(`^deps${scopeRegex}:`)) ||
-              latestCommit.match(new RegExp(`^go${scopeRegex}:`))
+              latestCommit.startsWith('fix:') ||
+              latestCommit.startsWith('perf:') ||
+              latestCommit.startsWith('refactor:') ||
+              latestCommit.startsWith('build:') ||
+              latestCommit.startsWith('deps:') ||
+              latestCommit.startsWith('go:')
             ) {
               releaseType = 'patch';
             }
@@ -92,14 +90,14 @@ jobs:
             const body = `No release flag detected in the latest commit. To trigger a release, use conventional commit format:
 
             Major version (Breaking changes):
-            - \`feat!: breaking change\`
+            - \`feat!: breaking change to command interface\`
             - \`feat(mod)!: change module system\`
-            - \`fix!: remove deprecated functionality\`
+            - \`fix!: remove deprecated command\`
             - Include \`BREAKING CHANGE:\` in the commit message
 
             Minor version (Features):
-            - \`feat: add new feature\`
-            - \`feat(mod): add module feature\`
+            - \`feat: add new command\`
+            - \`feat(mod): add new module feature\`
 
             Patch version:
             - \`fix: fix issue\`
@@ -109,7 +107,6 @@ jobs:
             - \`build: update build system\`
             - \`deps: update dependencies\`
             - \`go: update Go version\`
-            - \`go(mod): update module dependencies\`
 
             No version bump:
             - \`style: format code\`
@@ -117,7 +114,7 @@ jobs:
             - \`ci: update workflows\`
             - \`docs: update readme\`
 
-            Valid scopes: deps, mod
+            Valid scopes: mod, deps
             Note: Scopes are optional`;
 
             const { data: comments } = await github.rest.issues.listComments({

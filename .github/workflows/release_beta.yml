@@ -67,12 +67,6 @@ jobs:
                   COMMIT_MSG=$(git log -1 --pretty=format:%s)
                   echo "Latest commit: ${COMMIT_MSG}"
 
-                  # Skip if it's a release commit
-                  if [[ $COMMIT_MSG == "[RELEASE]"* ]]; then
-                    echo "Skipping release for release commit"
-                    exit 0
-                  fi
-
                   # Determine release type from commit message
                   if [[ $COMMIT_MSG =~ ^feat!: || $COMMIT_MSG =~ ^fix!: || $COMMIT_MSG =~ "BREAKING CHANGE:" ]]; then
                     RELEASE_TYPE="major"
