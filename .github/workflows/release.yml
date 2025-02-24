@@ -22,7 +22,6 @@ jobs:
           go-version: '1.22'
 
       - name: Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 23.0.2
@@ -30,22 +29,5 @@ jobs:
             @semantic-release/changelog@6.0.3
             @semantic-release/git@10.0.1
             @semantic-release/exec@6.0.3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Beta Release
-        if: github.event_name == 'pull_request'
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          semantic_version: 23.0.2
-          extra_plugins: |
-            @semantic-release/changelog@6.0.3
-            @semantic-release/git@10.0.1
-            @semantic-release/exec@6.0.3
-          branches: |
-            [
-              '${{ github.head_ref }}'
-            ]
-          dry_run: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

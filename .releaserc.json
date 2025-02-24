@@ -1,5 +1,11 @@
 {
-  "branches": ["main"],
+  "branches": [
+    "main",
+    {
+      "name": "+(feat|fix|perf|refactor)/*",
+      "prerelease": true
+    }
+  ],
   "plugins": [
     ["@semantic-release/commit-analyzer", {
       "preset": "conventionalcommits",
