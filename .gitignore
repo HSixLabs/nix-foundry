@@ -1,39 +1,14 @@
-# Nix build outputs
-result
-result-*
+# Go
+.go/
+bin/
 
-# direnv
-.direnv/
-.envrc
-
-# Editor files
-.vscode/
+# Nix
+nix-foundry
+dist/
 .idea/
-*.swp
-*~
-
-# macOS system files
+.vscode/
 .DS_Store
-.AppleDouble
-.LSOverride
 
-# Logs
-*.log
-
-# Local environment files
-.env
-.env.local
-
-# Temporary files
-*.tmp
-*.temp
-
-# Nix garbage collection roots
-/nix/var/nix/gcroots/
-
-# Build artifacts
-/build/
-/dist/
-
-# Home Manager generated files
-home-manager-generation* 
+# Node.js
+node_modules/
+package-lock.json

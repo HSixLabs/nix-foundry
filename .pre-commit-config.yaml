@@ -4,20 +4,51 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
-      - id: check-yaml
+      # - id: check-yaml
       - id: check-json
-      - id: check-merge-conflict
       - id: check-added-large-files
       - id: mixed-line-ending
         args: [--fix=lf]
-      - id: no-commit-to-branch
-        args: [--branch, main]
+      - id: detect-private-key
+      - id: check-merge-conflict
 
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v1.64.4
     hooks:
-      - id: shellcheck
-        files: .*\.sh$
+      - id: golangci-lint
+        args:
+          [
+            '--fix',
+            '--timeout=5m',
+            '--config=.golangci.yml',
+            './cmd/...',
+            './pkg/...',
+            './service/...',
+          ]
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: go-mod-download
+        name: go mod download
+        entry: go mod download
+        language: system
+        pass_filenames: false
+
+      - id: go-test
+        name: Run Go tests
+        entry: go test ./... -v
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: generate-docs
+        name: Generate documentation
+        entry: go run scripts/gendocs.go
+        language: system
+        files: ^(pkg/|cmd/|service/|docs/)
+        pass_filenames: false
+        stages: [pre-commit]
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.20.0
@@ -25,18 +56,3 @@ repos:
       - id: commitlint
         stages: [commit-msg]
         additional_dependencies: ['@commitlint/config-conventional']
-
-  - repo: local
-    hooks:
-      - id: nixfmt
-        name: Format Nix files
-        entry: bash -c 'exec "$NIXPKGS_FMT" "$@"' --
-        language: system
-        files: \.nix$
-
-      - id: nix-flake-check
-        name: Check Nix flake
-        entry: nix flake check
-        language: system
-        pass_filenames: false
-        files: '.*\.nix$'

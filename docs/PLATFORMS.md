@@ -1,127 +1,100 @@
-# Platform-Specific Setup
+# Platform Support
 
-nix-foundry provides optimized configurations for each supported platform.
-
-## macOS (Darwin)
-
-### macOS Prerequisites
-
-- Xcode Command Line Tools
-- Rosetta 2 (for Apple Silicon)
-
-### macOS Features
-
-- Homebrew integration
-- System preferences configuration
-- iTerm2 settings
-- Font installation
-
-### macOS Post-Install
-
-The system will automatically:
-
-- Configure SSL certificates
-- Install Homebrew packages
-- Apply system defaults
+Nix Foundry supports multiple platforms with platform-specific optimizations.
 
 ## Linux
 
-### Linux Prerequisites
+### Supported Distributions
 
-- systemd-based distribution
-- curl or wget
+- Ubuntu 20.04+
+- Debian 10+
+- Fedora 34+
+- CentOS/RHEL 8+
+- Arch Linux
+- NixOS
 
-### Linux Features
+### Installation Modes
 
-- Native package management
-- System-wide configurations
-- WSL2 support (when applicable)
+- Multi-user
+- Single-user
 
-### Linux Post-Install
+### Requirements
 
-- System configuration applied automatically
-- Reboot may be required for kernel changes
+- x86_64 or aarch64 architecture
+- systemd for multi-user mode
+- sudo access for multi-user mode
 
-## Windows (Experimental)
+## macOS
 
-### Windows Prerequisites
+### Supported Versions
 
-- Windows 10/11
+- macOS 11 (Big Sur) and newer
+- Intel and Apple Silicon support
+
+### Installation Mode
+
+- Multi-user mode only (required)
+- Admin privileges required
+
+### Requirements
+
+- Command Line Tools for Xcode
+- Rosetta 2 (for Intel packages on Apple Silicon)
+- System Integrity Protection (SIP) enabled
+
+## Windows (WSL2)
+
+### Requirements
+
+- Windows 10 version 2004+ or Windows 11
 - WSL2 enabled
+- Ubuntu 20.04+ (recommended)
 - Windows Terminal (recommended)
 
-### Windows Features
+### Installation Mode
 
-- PowerShell configuration
-- Windows Terminal settings
-- Cross-platform compatibility
+- Single-user mode recommended
+- Multi-user mode available but requires additional setup
 
-### Windows Known Limitations
+### Considerations
 
-- Some features require manual setup
-- Performance may vary under WSL2
+- Use Linux filesystem for best performance
+- Some GUI applications require WSLg
+- Network access follows WSL2 networking rules
 
-## Troubleshooting
+## Common Requirements
 
-### macOS Issues
+All platforms require:
 
-1. **SSL Certificate Problems**
+- Internet connection
+- Bash or compatible shell
+- curl or wget
+- Git for development packages
 
-   ```bash
-   # Regenerate certificates
-   sudo rm /etc/ssl/certs/ca-certificates.crt
-   curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- reinstall
-   ```
+## Platform-Specific Features
 
-2. **Homebrew Integration Fails**
+### Linux
 
-   - Ensure Xcode CLI tools are installed: `xcode-select --install`
-   - Check Homebrew permissions: `sudo chown -R $(whoami) /opt/homebrew`
+- Native container support
+- Full systemd integration
+- Direct hardware access
 
-### Linux Issues
+### macOS
 
-1. **Missing System Dependencies**
+- Native ARM package support
+- Automatic Rosetta 2 integration
+- Seamless GUI application support
 
-   ```bash
-   # Ubuntu/Debian
-   sudo apt update && sudo apt install curl git
+### WSL2
 
-   # Fedora
-   sudo dnf install curl git
-   ```
+- Windows path integration
+- Automatic port forwarding
+- WSLg support for GUI applications
 
-2. **Home Manager Conflicts**
+## Best Practices
 
-   - Backup and remove existing config: `mv ~/.config/home-manager ~/.config/home-manager.bak`
-   - Clear generation: `home-manager generations | head -1 | xargs home-manager remove-generations`
-
-### Windows/WSL2 Issues
-
-1. **WSL2 Installation**
-
-   ```powershell
-   # Run in PowerShell as Administrator
-   wsl --install
-   wsl --set-default-version 2
-   ```
-
-2. **Path Resolution Problems**
-   - Check Windows/WSL path integration: `wsl.exe --status`
-   - Ensure Windows Terminal uses correct shell: `"defaultProfile": "{WSL GUID}"`
-
-### General Fixes
-
-1. **Nix Store Corruption**
-
-   ```bash
-   nix-store --verify --check-contents
-   nix-store --repair
-   ```
-
-2. **Configuration Not Applied**
-
-   ```bash
-   # Clear and rebuild
-   rm -rf ~/.config/nix-foundry
-   curl -H "Authorization: token ${GITHUB_TOKEN}" -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | bash -s -- reinstall
-   ```
+1. Use recommended installation mode for your platform
+2. Keep system packages updated
+3. Follow platform-specific security guidelines
+4. Use native packages when available
+5. Consider filesystem locations for optimal performance

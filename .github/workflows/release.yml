@@ -1,66 +1,206 @@
 name: Release
 
 on:
-  push:
-    branches: [ main ]
+    push:
+        branches: [main]
+    pull_request:
+        types: [closed]
 
 permissions:
-  contents: write
-  pull-requests: read
+    contents: write
+    pull-requests: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    test:
+        uses: ./.github/workflows/ci.yml
+
+    check_release:
+        if: github.event_name == 'pull_request'
+        uses: ./.github/workflows/check_release_flag.yml
         with:
-          fetch-depth: 0
+            pull_request_number: ${{ github.event.pull_request.number }}
 
-      - name: Get version
-        id: version
-        run: |
-          # Get latest tag or default to v0.0.0
-          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $latest_tag"
+    build:
+        needs: [test]
+        if: |
+            (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: 'go.mod'
+                  cache: true
+            - name: Build
+              run: go build -v ./...
 
-          # Remove v prefix and split into components
-          version=${latest_tag#v}
-          IFS='.' read -r major minor patch <<< "$version"
+    version_and_publish:
+        needs: [test, check_release, build]
+        if: |
+            (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+            needs.check_release.outputs.release_type
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: main
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fetch-depth: 0
+            - uses: actions/setup-go@v5
+              with:
+                  go-version-file: 'go.mod'
+                  cache: true
+            - name: Configure Git
+              run: |
+                  git config --global user.name "github-actions[bot]"
+                  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            - name: Version and Tag
+              id: version
+              run: |
+                  set -e
+                  # Get current version from go.mod
+                  CURRENT_VERSION=$(grep -m1 "^module" go.mod | awk '{print $2}' | awk -F/ '{print $NF}' | sed 's/v//')
+                  echo "Current version: ${CURRENT_VERSION}"
 
-          # Ensure variables are numbers
-          major=${major:-0}
-          minor=${minor:-0}
-          patch=${patch:-0}
+                  # Get the latest commit message
+                  COMMIT_MSG=$(git log -1 --pretty=format:%s)
+                  echo "Latest commit: ${COMMIT_MSG}"
 
-          # Increment patch version
-          patch=$((patch + 1))
+                  # Skip if it's a release commit
+                  if [[ $COMMIT_MSG == "[RELEASE]"* ]]; then
+                    echo "Skipping release for release commit"
+                    exit 0
+                  fi
 
-          # Create new version string
-          new_version="v${major}.${minor}.${patch}"
-          echo "New version: $new_version"
-          echo "version=$new_version" >> $GITHUB_OUTPUT
-          echo "version_type=patch" >> $GITHUB_OUTPUT
+                  # Determine release type from commit message
+                  if [[ $COMMIT_MSG =~ ^feat!: || $COMMIT_MSG =~ ^fix!: || $COMMIT_MSG =~ "BREAKING CHANGE:" ]]; then
+                    RELEASE_TYPE="major"
+                  elif [[ $COMMIT_MSG =~ ^feat: ]]; then
+                    RELEASE_TYPE="minor"
+                  elif [[ $COMMIT_MSG =~ ^(fix|perf|refactor|build|deps|go): ]]; then
+                    RELEASE_TYPE="patch"
+                  else
+                    echo "No release type found in commit message"
+                    exit 0
+                  fi
 
-      - name: Generate changelog
-        id: changelog
-        uses: mikepenz/release-changelog-builder-action@v4
-        with:
-          configuration: ".github/changelog-config.json"
-          fromTag: ${{ steps.version.outputs.version }}
-          toTag: ${{ github.sha }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  echo "Release type: ${RELEASE_TYPE}"
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Release ${{ steps.version.outputs.version }}
-          body: |
-            ## Version Type: ${{ steps.version.outputs.version_type }}
+                  # Calculate new version using go version comparison
+                  case "$RELEASE_TYPE" in
+                    "major")
+                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+                      NEW_VERSION="$((MAJOR + 1)).0.0"
+                      ;;
+                    "minor")
+                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+                      MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+                      NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+                      ;;
+                    "patch")
+                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+                      MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+                      PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+                      NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+                      ;;
+                    *)
+                      echo "Error: Invalid release type"
+                      exit 1
+                      ;;
+                  esac
 
-            ${{ steps.changelog.outputs.changelog }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  echo "New version: ${NEW_VERSION}"
+
+                  # Update go.mod with new version
+                  MODULE_PATH=$(grep -m1 "^module" go.mod | awk '{print $2}' | sed "s/v[0-9]*\.[0-9]*\.[0-9]*/v${NEW_VERSION}/")
+                  sed -i "s|^module.*|module ${MODULE_PATH}|" go.mod
+
+                  # Generate changelog
+                  echo "## [${NEW_VERSION}] - $(date +%Y-%m-%d)" > CHANGELOG.new.md
+                  echo "" >> CHANGELOG.new.md
+
+                  # Get all commits since last tag
+                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+                  if [ -n "$LAST_TAG" ]; then
+                    COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"* %s (%h)" --no-merges)
+                  else
+                    COMMITS=$(git log --pretty=format:"* %s (%h)" --no-merges)
+                  fi
+
+                  # Group commits by type
+                  echo "### Breaking Changes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep -E "^\\* (feat|fix)!:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep -B1 "BREAKING CHANGE:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
+
+                  echo "### Features" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* feat:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
+
+                  echo "### Bug Fixes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* fix:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
+
+                  echo "### Performance Improvements" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* perf:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
+
+                  echo "### Other Changes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep -vE "^\\* (feat|fix|perf):" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
+
+                  # Prepend new changelog to existing one
+                  if [ -f CHANGELOG.md ]; then
+                    tail -n +2 CHANGELOG.md > CHANGELOG.tmp
+                    cat CHANGELOG.new.md CHANGELOG.tmp > CHANGELOG.md
+                    rm CHANGELOG.tmp
+                  else
+                    cat CHANGELOG.new.md > CHANGELOG.md
+                  fi
+                  rm CHANGELOG.new.md
+
+                  # Build and test with new version
+                  go build -v ./...
+                  go test -v ./...
+
+                  # Commit changes
+                  git add go.mod CHANGELOG.md
+                  git commit -m "[RELEASE] v${NEW_VERSION}"
+                  git tag -a "v${NEW_VERSION}" -m "Release version ${NEW_VERSION}"
+
+                  echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+            - name: Push changes
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+                  git push origin main
+                  git push origin "v${{ steps.version.outputs.version }}"
+
+            - name: Create GitHub Release
+              if: steps.version.outputs.version != ''
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                    const fs = require('fs');
+                    const version = 'v${{ steps.version.outputs.version }}';
+
+                    // Read the latest entry from CHANGELOG.md
+                    const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+                    const latestEntry = changelog.split(/^## /m)[1].trim();
+
+                    await github.rest.repos.createRelease({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      tag_name: version,
+                      name: version,
+                      body: latestEntry,
+                      draft: false,
+                      prerelease: false
+                    });
