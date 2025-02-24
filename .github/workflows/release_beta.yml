@@ -1,17 +1,7 @@
 name: Release Beta
 on:
-  workflow_call:
-    inputs:
-      pull_request_number:
-        required: true
-        type: number
-    outputs:
-      should_publish:
-        description: "Whether the changes warrant a release"
-        value: ${{ jobs.check_flag.outputs.should_publish }}
-      release_type:
-        description: "Type of release (major, minor, patch)"
-        value: ${{ jobs.check_flag.outputs.release_type }}
+    pull_request:
+        types: [opened, edited, reopened, synchronize]
 
 jobs:
     check_release:

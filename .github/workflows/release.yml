@@ -1,18 +1,11 @@
 name: Release
 
 on:
-    workflow_call:
-        inputs:
-            pull_request_number:
-                required: true
-                type: number
-        outputs:
-            should_publish:
-                description: "Whether the changes warrant a release"
-                value: ${{ jobs.check_release.outputs.should_publish }}
-            release_type:
-                description: "Type of release (major, minor, patch)"
-                value: ${{ jobs.check_release.outputs.release_type }}
+    push:
+        branches: [main]
+    pull_request:
+        types: [closed]
+
 jobs:
     test:
         uses: ./.github/workflows/ci.yml
