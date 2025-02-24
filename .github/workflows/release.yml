@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: 20.x
 
+      - name: Force Semantic Release for PRs
+        run: echo "GITHUB_REF=refs/heads/pr-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+
       - name: Run Semantic Release (Beta)
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -42,6 +45,7 @@ jobs:
             @semantic-release/exec
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF: refs/heads/pr-${{ github.event.pull_request.number }}
 
       - name: Post Beta Comment
         if: steps.semantic.outputs.new_release_published == 'true'

@@ -5,11 +5,6 @@
       "name": "pr-*",
       "prerelease": true,
       "channel": "beta"
-    },
-    {
-      "name": "+(feat|fix|perf|refactor)/*",
-      "prerelease": "${name.replace(/\\//g, '-')}",
-      "channel": "beta"
     }
   ],
   "plugins": [
