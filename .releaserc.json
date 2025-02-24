@@ -1,34 +1,18 @@
 {
   "branches": [
-    "main",
     {
-      "name": "pr-*",
-      "prerelease": true,
-      "channel": "beta"
+      "name": "main"
+    },
+    {
+      "name": "*",
+      "prerelease": "${name === 'main' ? false : 'beta'}"
     }
   ],
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
       {
-        "preset": "conventionalcommits",
-        "releaseRules": [
-          { "type": "feat", "release": "minor" },
-          { "type": "fix", "release": "patch" },
-          { "type": "perf", "release": "patch" },
-          { "type": "docs", "release": "patch" },
-          { "type": "style", "release": false },
-          { "type": "refactor", "release": "patch" },
-          { "type": "test", "release": false },
-          { "type": "build", "release": "patch" },
-          { "type": "ci", "release": false },
-          { "type": "deps", "release": "patch" },
-          { "type": "go", "release": "patch" },
-          { "breaking": true, "release": "major" },
-          { "type": "feat", "scope": "api", "release": "minor" },
-          { "type": "fix", "scope": "deps", "release": "patch" },
-          { "type": "go", "scope": "mod", "release": "patch" }
-        ]
+        "preset": "conventionalcommits"
       }
     ],
     "@semantic-release/release-notes-generator",
@@ -55,8 +39,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64 && GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64 && GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64",
-        "publishCmd": "echo 'Triggering beta release for PR-${{ github.event.pull_request.number }}'"
+        "prepareCmd": "GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64 && GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64 && GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64"
       }
     ]
   ]
