@@ -37,8 +37,8 @@ func (m *Manager) ConfigureShell(shell string) error {
 		return fmt.Errorf("failed to get shell config file: %w", err)
 	}
 
-	if err := m.fs.CreateDir(filepath.Dir(configFile)); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if createDirErr := m.fs.CreateDir(filepath.Dir(configFile)); createDirErr != nil {
+		return fmt.Errorf("failed to create config directory: %w", createDirErr)
 	}
 
 	var content []byte
@@ -53,16 +53,16 @@ func (m *Manager) ConfigureShell(shell string) error {
 
 	if strings.Contains(string(content), "# Nix") {
 		newContent := m.updateExistingConfig(string(content), config)
-		if err := m.fs.WriteFile(configFile, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to update config file: %w", err)
+		if writeErr := m.fs.WriteFile(configFile, []byte(newContent), 0644); writeErr != nil {
+			return fmt.Errorf("failed to update config file: %w", writeErr)
 		}
 	} else {
 		if len(content) > 0 && !strings.HasSuffix(string(content), "\n") {
 			content = append(content, '\n')
 		}
 		content = append(content, []byte(config)...)
-		if err := m.fs.WriteFile(configFile, content, 0644); err != nil {
-			return fmt.Errorf("failed to write config file: %w", err)
+		if writeErr := m.fs.WriteFile(configFile, content, 0644); writeErr != nil {
+			return fmt.Errorf("failed to write config file: %w", writeErr)
 		}
 	}
 
