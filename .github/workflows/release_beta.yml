@@ -173,13 +173,54 @@ jobs:
                   # Set outputs for use in subsequent steps
                   echo "beta_version=${BETA_VERSION}" >> $GITHUB_OUTPUT
 
-            - name: Push changes
+            - name: Push tag
               if: steps.version.outputs.beta_version != ''
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
                   git push origin "v${{ steps.version.outputs.beta_version }}"
+
+            - name: Build Release Binaries
+              if: steps.version.outputs.beta_version != ''
+              run: |
+                  VERSION="${{ steps.version.outputs.beta_version }}"
+                  mkdir -p dist
+
+                  # Build for macOS (Intel)
+                  GOOS=darwin GOARCH=amd64 go build -o dist/nix-foundry
+                  tar czf "dist/nix-foundry_${VERSION}_darwin_amd64.tar.gz" -C dist nix-foundry
+                  rm dist/nix-foundry
+
+                  # Build for macOS (Apple Silicon)
+                  GOOS=darwin GOARCH=arm64 go build -o dist/nix-foundry
+                  tar czf "dist/nix-foundry_${VERSION}_darwin_arm64.tar.gz" -C dist nix-foundry
+                  rm dist/nix-foundry
+
+                  # Build for Linux (x86_64)
+                  GOOS=linux GOARCH=amd64 go build -o dist/nix-foundry
+                  tar czf "dist/nix-foundry_${VERSION}_linux_amd64.tar.gz" -C dist nix-foundry
+                  rm dist/nix-foundry
+
+                  # Build for Linux (ARM64)
+                  GOOS=linux GOARCH=arm64 go build -o dist/nix-foundry
+                  tar czf "dist/nix-foundry_${VERSION}_linux_arm64.tar.gz" -C dist nix-foundry
+                  rm dist/nix-foundry
+
+            - name: Create GitHub Release
+              if: steps.version.outputs.beta_version != ''
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  VERSION="${{ steps.version.outputs.beta_version }}"
+                  CHANGELOG=$(cat temp_changelog.txt)
+
+                  # Create release with changelog
+                  gh release create "v${VERSION}" \
+                    --prerelease \
+                    --title "v${VERSION}" \
+                    --notes "${CHANGELOG}" \
+                    dist/nix-foundry_${VERSION}_*.tar.gz
 
             - name: Comment on PR
               if: steps.version.outputs.beta_version != ''
