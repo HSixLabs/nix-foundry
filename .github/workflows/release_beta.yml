@@ -17,21 +17,10 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-go@v5
               with:
-                  node-version-file: ".nvmrc"
-                  registry-url: "https://npm.pkg.github.com"
-                  scope: "@crunchyroll"
-            - name: Install dependencies
-              run: npm ci
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            - name: Run lint
-              run: npm run lint
-            - name: Build package
-              run: npm run build
-            - name: Run tests
-              run: npm run test
+                  go-version-file: 'go.mod'
+                  cache: true
 
     version_and_publish:
         needs: [check_release, build]
@@ -43,15 +32,10 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-go@v5
               with:
-                  node-version-file: ".nvmrc"
-                  registry-url: "https://npm.pkg.github.com"
-                  scope: "@crunchyroll"
-            - name: Install dependencies
-              run: npm ci
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  go-version-file: 'go.mod'
+                  cache: true
             - name: Configure Git
               run: |
                   git config --global user.name "Github Actions"
@@ -60,7 +44,8 @@ jobs:
               id: version
               run: |
                   set -e
-                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  # Get current version from go.mod
+                  CURRENT_VERSION=$(grep -m1 "^module" go.mod | awk '{print $2}' | awk -F/ '{print $NF}' | sed 's/v//')
                   echo "Current version: ${CURRENT_VERSION}"
 
                   # Get the latest commit message
@@ -85,16 +70,22 @@ jobs:
                   LATEST_MAIN_VERSION=$(git describe --tags --match "v*" --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
                   LATEST_MAIN_VERSION=${LATEST_MAIN_VERSION#v}
 
-                  # Calculate new base version
+                  # Calculate new base version using go version comparison
                   case "$RELEASE_TYPE" in
                     "major")
-                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'major')")
+                      MAJOR=$(echo $LATEST_MAIN_VERSION | cut -d. -f1)
+                      BASE_VERSION="$((MAJOR + 1)).0.0"
                       ;;
                     "minor")
-                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'minor')")
+                      MAJOR=$(echo $LATEST_MAIN_VERSION | cut -d. -f1)
+                      MINOR=$(echo $LATEST_MAIN_VERSION | cut -d. -f2)
+                      BASE_VERSION="${MAJOR}.$((MINOR + 1)).0"
                       ;;
                     "patch")
-                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'patch')")
+                      MAJOR=$(echo $LATEST_MAIN_VERSION | cut -d. -f1)
+                      MINOR=$(echo $LATEST_MAIN_VERSION | cut -d. -f2)
+                      PATCH=$(echo $LATEST_MAIN_VERSION | cut -d. -f3)
+                      BASE_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
                       ;;
                     *)
                       echo "Error: Invalid release type"
@@ -113,8 +104,9 @@ jobs:
                   fi
                   echo "Beta version: ${BETA_VERSION}"
 
-                  # Update package.json
-                  node -e "const pkg=require('./package.json'); pkg.version='${BETA_VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')"
+                  # Update go.mod with new version
+                  MODULE_PATH=$(grep -m1 "^module" go.mod | awk '{print $2}' | sed "s/v[0-9]*\.[0-9]*\.[0-9]*/v${BETA_VERSION}/")
+                  sed -i "s|^module.*|module ${MODULE_PATH}|" go.mod
 
                   # Generate changelog for PR
                   echo "## Changes in this Beta Release" > PR_CHANGELOG.md
@@ -145,19 +137,21 @@ jobs:
                   echo "$COMMITS" | grep -vE "^\\* (feat|fix|perf):" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
-                  echo "Building package..."
-                  npm run build
+                  # Build and test with new version
+                  go build -v ./...
+                  go test -v ./...
 
-                  echo "Publishing beta version..."
-                  npm publish || {
-                    echo "Failed to publish package"
-                    exit 1
-                  }
+                  # Create and push tag
+                  git add go.mod
+                  git commit -m "[RELEASE] v${BETA_VERSION}"
+                  git tag -a "v${BETA_VERSION}" -m "Release version ${BETA_VERSION}"
 
                   echo "version=${BETA_VERSION}" >> $GITHUB_OUTPUT
-              env:
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Push changes
+              run: |
+                  git push origin HEAD:${GITHUB_HEAD_REF}
+                  git push origin "v${{ steps.version.outputs.version }}"
 
             - name: Comment on PR
               if: steps.version.outputs.version != ''
@@ -172,12 +166,12 @@ jobs:
 
                     Version: \`${betaVersion}\`
 
-                    You can install it with:
-                    \`\`\`bash
-                    npm install @crunchyroll/cr-lib-e2e-ts@${betaVersion}
+                    You can use this version in your go.mod:
+                    \`\`\`
+                    require github.com/shawnkhoffman/nix-foundry v${betaVersion}
                     \`\`\`
 
-                    To test your changes, update your package.json to use this specific version.
+                    To test your changes, update your go.mod to use this specific version.
 
                     ${changelog}`;
 
