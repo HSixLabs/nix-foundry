@@ -7,7 +7,129 @@ on:
     branches: [main]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Get the next version based on PR commits
+            COMMITS=$(gh pr view ${{ github.event.pull_request.number }} --json commits --jq '.commits[]')
+            COMMIT_MSGS=$(echo "$COMMITS" | jq -r '.messageHeadline + "\n" + (.messageBody // "")')
+
+            # Get latest release version
+            LATEST_VERSION=$(gh release view --json tagName --jq .tagName || echo "v0.0.0")
+            LATEST_VERSION=${LATEST_VERSION#v}
+
+            # Split version into parts
+            IFS='.' read -r major minor patch <<< "$LATEST_VERSION"
+
+            # Define valid commit types
+            TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
+
+            # Determine version bump based on commit types
+            if echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
+              NEW_VERSION="$((major + 1)).0.0"
+            elif echo "$COMMIT_MSGS" | grep -qE '^feat(\(.+\))?:'; then
+              NEW_VERSION="${major}.$((minor + 1)).0"
+            elif echo "$COMMIT_MSGS" | grep -qE "^(fix|perf)(\(.+\))?:"; then
+              NEW_VERSION="${major}.${minor}.$((patch + 1))"
+            else
+              NEW_VERSION="${major}.${minor}.${patch}"
+            fi
+
+            # Add beta suffix with PR number and increment
+            # Get current beta count for this PR
+            BETA_COUNT=$(gh release list --limit 100 | grep "beta.pr${{ github.event.pull_request.number }}." | wc -l)
+            BETA_COUNT=$((BETA_COUNT + 1))
+
+            NEW_VERSION="${NEW_VERSION}-beta.pr${{ github.event.pull_request.number }}.${BETA_COUNT}"
+
+            # Check if any commit matches valid types for release
+            if echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})(\(.+\))?:" || \
+               echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || \
+               echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
+              echo "should_release=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            # For main branch, get conventional commit type and body
+            COMMIT_MSG=$(git log -1 --pretty=format:%B)
+
+            # Define valid commit types
+            TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
+
+            if echo "$COMMIT_MSG" | grep -qE "^(${TYPES})(\(.+\))?:" || \
+               echo "$COMMIT_MSG" | grep -qE 'BREAKING CHANGE:' || \
+               echo "$COMMIT_MSG" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
+              # Get the PR number from the merge commit message
+              PR_NUMBER=$(git log -1 --pretty=format:%s | grep -oP '#\K[0-9]+' || echo "")
+
+              if [ -n "$PR_NUMBER" ]; then
+                # Get the latest beta version for this PR
+                BETA_VERSION=$(gh release list --limit 100 | grep "beta.pr${PR_NUMBER}." | head -n1 | awk '{print $1}')
+                if [ -n "$BETA_VERSION" ]; then
+                  # Strip beta suffix to get the version
+                  NEW_VERSION=$(echo "$BETA_VERSION" | sed -E 's/-beta\.pr[0-9]+\.[0-9]+$//')
+                  echo "should_release=true" >> $GITHUB_OUTPUT
+                fi
+              fi
+
+              if [ -z "$NEW_VERSION" ]; then
+                # Fallback to normal version calculation
+                LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+                LATEST_TAG=${LATEST_TAG#v}
+                IFS='.' read -r major minor patch <<< "$LATEST_TAG"
+
+                if echo "$COMMIT_MSG" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSG" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
+                  NEW_VERSION="$((major + 1)).0.0"
+                elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
+                  NEW_VERSION="${major}.$((minor + 1)).0"
+                elif echo "$COMMIT_MSG" | grep -qE "^(fix|perf)(\(.+\))?:"; then
+                  NEW_VERSION="${major}.${minor}.$((patch + 1))"
+                else
+                  NEW_VERSION="${major}.${minor}.${patch}"
+                fi
+                echo "should_release=true" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "should_release=false" >> $GITHUB_OUTPUT
+              NEW_VERSION="none"
+            fi
+          fi
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        if: steps.version.outputs.should_release == 'true'
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build Binaries
+        if: steps.version.outputs.should_release == 'true'
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64
+          GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64
+
   release:
+    needs: build
+    if: needs.build.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,40 +137,42 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
         with:
-          fetch-depth: 0
-          persist-credentials: false
+          name: binaries
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-
-      - name: Configure Git
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-
-      - name: Run Semantic Release
-        id: semantic
+      - name: Create Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CI_PULL_REQUEST: ""
-          CIRCLE_PULL_REQUEST: ""
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          extra_plugins: |
-            @semantic-release/git
-            @semantic-release/changelog
-            @semantic-release/exec
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ needs.build.outputs.version }}
+          PRERELEASE=${{ github.event_name == 'pull_request' }}
 
-      - name: Post Beta Comment
-        if: github.event_name == 'pull_request' && steps.semantic.outputs.new_release_published == 'true'
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            TITLE="Beta Release $VERSION"
+            NOTES="🚧 Beta release for PR #${{ github.event.pull_request.number }}"
+          else
+            TITLE="Release $VERSION"
+            NOTES=$(git log -1 --pretty=format:%b)
+          fi
+
+          gh release create "v$VERSION" \
+            --title "$TITLE" \
+            --notes "$NOTES" \
+            --prerelease=$PRERELEASE \
+            nix-foundry-linux-amd64 \
+            nix-foundry-darwin-amd64 \
+            nix-foundry-darwin-arm64
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
-            const version = '${{ steps.semantic.outputs.new_release_version }}'
-            const downloadUrl = `https://github.com/${{ github.repository }}/releases/download/${version}/nix-foundry-\$(uname -s | tr '[:upper:]' '[:lower:]')-\$(uname -m)`
+            const version = '${{ needs.build.outputs.version }}'
+            const downloadUrl = `https://github.com/${{ github.repository }}/releases/download/v${version}/nix-foundry-\$(uname -s | tr '[:upper:]' '[:lower:]')-\$(uname -m)`
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -61,5 +185,5 @@ jobs:
               curl -L ${downloadUrl} -o nix-foundry && chmod +x nix-foundry
               \`\`\`
 
-              ${{ steps.semantic.outputs.new_release_notes }}`
+              [View Release](https://github.com/${{ github.repository }}/releases/tag/v${version})`
             })
