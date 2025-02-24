@@ -45,7 +45,7 @@ jobs:
             const latestCommit = execSync('git log -1 --pretty=format:%s').toString().toLowerCase();
             console.log('Latest commit:', latestCommit);
 
-            // Valid scopes from commitlint config (but make them optional)
+            // Valid scopes from commitlint config
             const validScopes = ['deps', 'mod'];
             const scopeRegex = `(?:\\((?:${validScopes.join('|')})?\\))?`;
 
@@ -92,18 +92,18 @@ jobs:
             const body = `No release flag detected in the latest commit. To trigger a release, use conventional commit format:
 
             Major version (Breaking changes):
-            - \`feat!: breaking change to command structure\`
+            - \`feat!: breaking change\`
             - \`feat(mod)!: change module system\`
             - \`fix!: remove deprecated functionality\`
             - Include \`BREAKING CHANGE:\` in the commit message
 
             Minor version (Features):
-            - \`feat: add new command\`
-            - \`feat(mod): add new module feature\`
+            - \`feat: add new feature\`
+            - \`feat(mod): add module feature\`
 
             Patch version:
-            - \`fix: resolve config parsing\`
-            - \`fix(mod): fix module loading\`
+            - \`fix: fix issue\`
+            - \`fix(mod): fix module issue\`
             - \`perf: improve performance\`
             - \`refactor: improve code structure\`
             - \`build: update build system\`
@@ -117,7 +117,7 @@ jobs:
             - \`ci: update workflows\`
             - \`docs: update readme\`
 
-            Valid scopes: mod, deps
+            Valid scopes: deps, mod
             Note: Scopes are optional`;
 
             const { data: comments } = await github.rest.issues.listComments({
