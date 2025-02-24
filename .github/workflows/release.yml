@@ -29,18 +29,11 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Setup Branch
-        if: github.event_name == 'pull_request'
-        run: |
-          git fetch origin main:main
-          git checkout -b beta
-          git reset --hard ${{ github.sha }}
-
       - name: Run Semantic Release
         id: semantic
-        uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: cycjimmy/semantic-release-action@v4
         with:
           extra_plugins: |
             @semantic-release/git

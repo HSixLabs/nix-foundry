@@ -1,5 +1,12 @@
 {
-  "branches": ["main", {"name": "beta", "prerelease": true, "channel": "beta"}],
+  "branches": [
+    "main",
+    {
+      "name": "pull/*",
+      "prerelease": "beta-${name.replace(/^pull\\//g, '')}",
+      "channel": "beta"
+    }
+  ],
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
@@ -24,8 +31,10 @@
           { "path": "nix-foundry-darwin-amd64", "label": "macOS x64 Binary" },
           { "path": "nix-foundry-darwin-arm64", "label": "macOS ARM64 Binary" }
         ],
-        "successComment": false,
-        "releasedLabels": false
+        "successComment": true,
+        "failComment": true,
+        "failTitle": "Release Failed",
+        "releasedLabels": ["released"]
       }
     ],
     [
