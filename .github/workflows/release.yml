@@ -7,8 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  beta-release:
-    if: github.event_name == 'pull_request'
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,6 +24,14 @@ jobs:
         with:
           node-version: 20.x
 
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git checkout -b beta
+          fi
+
       - name: Run Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -37,7 +44,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Post Beta Comment
-        if: steps.semantic.outputs.new_release_published == 'true'
+        if: github.event_name == 'pull_request' && steps.semantic.outputs.new_release_published == 'true'
         uses: actions/github-script@v6
         with:
           script: |
@@ -57,29 +64,3 @@ jobs:
 
               ${{ steps.semantic.outputs.new_release_notes }}`
             })
-
-  production-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-
-      - name: Run Semantic Release
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          extra_plugins: |
-            @semantic-release/git
-            @semantic-release/changelog
-            @semantic-release/exec
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
