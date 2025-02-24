@@ -1,4 +1,164 @@
-# Changelog
+## [1.0.0] - 2025-02-24
+
+### Breaking Changes
+feat!: Release v1.0.0 (#17)
+
+### Other Changes
+Release v1.0.0 (#18)
+
+* feat!: Release v1.0.0
+
+* feat!: Release v1.0.0
+
+---------
+
+Co-authored-by: Shawn Hoffman <shawnkhoffman@users.noreply.github.com>
+
+* refactor: convert to cli tool
+
+* refactor: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: remove .cursorrules from tracking
+
+* chore: check in code
+
+* chore: check in code
+
+* fix: lint errors and git hooks
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* chore: check in code
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* [RELEASE] v1.0.0-beta.1
+
+* feat!: Release v1
+
+* [RELEASE] v1.0.0-beta.2
+
+* feat!: Release v1
+
+* [RELEASE] v1.0.0-beta.3
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+* feat!: Release v1
+
+---------
+
+Co-authored-by: Shawn Hoffman <shawnkhoffman@users.noreply.github.com>
+Co-authored-by: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+
 
 All notable changes to this project will be documented in this file. See [semantic-release](https://github.com/semantic-release/semantic-release) for commit guidelines.
 
