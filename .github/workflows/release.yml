@@ -25,10 +25,10 @@ jobs:
         with:
           node-version: 20.x
 
-      - name: Create and push PR branch
+      - name: Override GitHub Actions context
         run: |
-          git checkout -b pr-${{ github.event.pull_request.number }}
-          git push origin pr-${{ github.event.pull_request.number }}
+          echo "GITHUB_EVENT_NAME=push" >> $GITHUB_ENV
+          echo "GITHUB_REF=refs/heads/pr-${{ github.event.pull_request.number }}" >> $GITHUB_ENV
 
       - name: Run Semantic Release (Beta)
         id: semantic
