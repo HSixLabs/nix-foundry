@@ -1,6 +1,11 @@
 name: CI
 
 on:
+  workflow_call:
+    outputs:
+      success:
+        description: "Whether all tests passed"
+        value: ${{ jobs.ci-complete.outputs.success }}
   push:
     branches: [main]
   pull_request:
@@ -21,6 +26,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
+          cache: true
 
       - name: Install dependencies
         run: go mod download
@@ -47,6 +53,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
 
       - name: Install dependencies
         run: go mod download
@@ -86,5 +93,8 @@ jobs:
     name: CI Complete
     needs: [test, docs]
     runs-on: ubuntu-latest
+    outputs:
+      success: ${{ steps.set-output.outputs.success }}
     steps:
-      - run: echo "CI passed"
+      - id: set-output
+        run: echo "success=true" >> $GITHUB_OUTPUT

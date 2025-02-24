@@ -1,186 +1,190 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types:
-      - completed
+    pull_request:
+        types: [closed]
 
 jobs:
-  beta-release:
-    # Only run for PRs when CI passes
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    test:
+        uses: ./.github/workflows/ci.yml
+
+    check_release:
+        uses: ./.github/workflows/check_release_flag.yml
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha }}
+            pull_request_number: ${{ github.event.pull_request.number }}
 
-      - name: Get PR number
-        id: pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: prs } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: '${{ github.event.workflow_run.head_sha }}'
-            });
-            if (prs.length === 0) {
-              throw new Error('No PR found for this commit');
-            }
-            return prs[0].number;
-          result-encoding: string
+    build:
+        needs: [test, check_release]
+        if: |
+            github.event.pull_request.merged == true &&
+            github.event.pull_request.base.ref == 'main' &&
+            needs.check_release.outputs.should_publish == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: ".nvmrc"
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@crunchyroll"
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Run lint
+              run: npm run lint
+            - name: Build package
+              run: npm run build
+            - name: Run tests
+              run: npm run test
 
-      - name: Calculate Next Version
-        id: version
-        run: |
-          # Get latest release version (non-beta)
-          LATEST_VERSION=$(gh release list --limit 100 | grep -v beta | head -n1 | awk '{print $1}' || echo "v0.0.0")
-          LATEST_VERSION=${LATEST_VERSION#v}
+    version_and_publish:
+        needs: [test, check_release, build]
+        if: |
+            github.event.pull_request.merged == true &&
+            !contains(github.event.pull_request.title, '[RELEASE]') &&
+            needs.check_release.outputs.should_publish == 'true'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: main
+                  token: ${{ secrets.GITHUB_TOKEN }}
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: ".nvmrc"
+                  registry-url: "https://npm.pkg.github.com"
+                  scope: "@crunchyroll"
+            - name: Install dependencies
+              run: npm ci
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Configure Git
+              run: |
+                  git config --global user.name "Github Actions"
+                  git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            - name: Version and Tag
+              id: version
+              run: |
+                  set -e
+                  CURRENT_VERSION=$(node -p "require('./package.json').version")
+                  echo "Current version: ${CURRENT_VERSION}"
 
-          # Split version into parts
-          IFS='.' read -r major minor patch <<< "$LATEST_VERSION"
+                  case "${{ needs.check_release.outputs.release_type }}" in
+                    "major")
+                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'major')")
+                      ;;
+                    "minor")
+                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'minor')")
+                      ;;
+                    "patch")
+                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'patch')")
+                      ;;
+                    *)
+                      echo "Error: Invalid release type"
+                      exit 1
+                      ;;
+                  esac
 
-          # Get PR commits
-          COMMITS=$(gh pr view ${{ steps.pr.outputs.result }} --json commits --jq '.commits[]')
-          COMMIT_MSGS=$(echo "$COMMITS" | jq -r '.messageHeadline + "\n" + (.messageBody // "")')
+                  echo "New version: ${NEW_VERSION}"
 
-          # Define valid commit types
-          TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
+                  # Update package.json
+                  node -e "const pkg=require('./package.json'); pkg.version='${NEW_VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n')"
 
-          # Calculate next version based on commit types
-          if echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
-            NEW_VERSION="$((major + 1)).0.0"
-          elif echo "$COMMIT_MSGS" | grep -qE '^feat(\(.+\))?:'; then
-            NEW_VERSION="${major}.$((minor + 1)).0"
-          elif echo "$COMMIT_MSGS" | grep -qE "^(fix|perf)(\(.+\))?:"; then
-            NEW_VERSION="${major}.${minor}.$((patch + 1))"
-          else
-            NEW_VERSION="${major}.${minor}.${patch}"
-          fi
+                  # Generate changelog
+                  echo "## [${NEW_VERSION}] - $(date +%Y-%m-%d)" >> CHANGELOG.new.md
+                  echo "" >> CHANGELOG.new.md
 
-          # Get current beta count for this PR
-          BETA_COUNT=$(gh release list --limit 100 | grep "beta-.*-pr${{ steps.pr.outputs.result }}\." | wc -l)
-          BETA_COUNT=$((BETA_COUNT + 1))
+                  # Get all commits since last tag
+                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+                  if [ -n "$LAST_TAG" ]; then
+                    COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"* %s (%h)" --no-merges)
+                  else
+                    COMMITS=$(git log --pretty=format:"* %s (%h)" --no-merges)
+                  fi
 
-          # Format beta version: beta-X.X.X-prN.M
-          BETA_VERSION="beta-${NEW_VERSION}-pr${{ steps.pr.outputs.result }}.${BETA_COUNT}"
-          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
-          echo "next_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # Group commits by type
+                  echo "### Breaking Changes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep -E "^\\* (feat|fix)!:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep -B1 "BREAKING CHANGE:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
+                  echo "### Features" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* feat:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
 
-      - name: Build Binaries
-        run: |
-          GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64
-          GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64
+                  echo "### Bug Fixes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* fix:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
 
-      - name: Create Beta Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          NEXT_VERSION=${{ steps.version.outputs.next_version }}
-          gh release create "v$VERSION" \
-            --title "Beta Release (v$NEXT_VERSION)" \
-            --notes "🚧 Beta release for PR #${{ steps.pr.outputs.result }}\n\nThis will become v$NEXT_VERSION when merged." \
-            --prerelease=true \
-            nix-foundry-linux-amd64 \
-            nix-foundry-darwin-amd64 \
-            nix-foundry-darwin-arm64
+                  echo "### Performance Improvements" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep "^\\* perf:" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
 
-      - name: Comment on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const version = '${{ steps.version.outputs.version }}'
-            const nextVersion = '${{ steps.version.outputs.next_version }}'
-            const downloadUrl = `https://github.com/${{ github.repository }}/releases/download/v${version}/nix-foundry-\$(uname -s | tr '[:upper:]' '[:lower:]')-\$(uname -m)`
+                  echo "### Other Changes" >> CHANGELOG.new.md
+                  echo "$COMMITS" | grep -vE "^\\* (feat|fix|perf):" >> CHANGELOG.new.md || true
+                  echo "" >> CHANGELOG.new.md
 
-            github.rest.issues.createComment({
-              issue_number: ${{ steps.pr.outputs.result }},
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `🚀 Beta release for v${nextVersion} is ready for testing:
+                  # Prepend new changelog to existing one
+                  if [ -f CHANGELOG.md ]; then
+                    tail -n +2 CHANGELOG.md > CHANGELOG.tmp
+                    cat CHANGELOG.new.md CHANGELOG.tmp > CHANGELOG.md
+                    rm CHANGELOG.tmp
+                  else
+                    cat CHANGELOG.new.md > CHANGELOG.md
+                  fi
+                  rm CHANGELOG.new.md
 
-              **Installation Command:**
-              \`\`\`bash
-              curl -L ${downloadUrl} -o nix-foundry && chmod +x nix-foundry
-              \`\`\`
+                  # Update docs
+                  npm run docs
 
-              [View Release](https://github.com/${{ github.repository }}/releases/tag/v${version})`
-            })
+                  # Commit changes
+                  git add package.json CHANGELOG.md docs/
+                  git commit -m "[RELEASE] v${NEW_VERSION}"
+                  git tag -a "v${NEW_VERSION}" -m "Release version ${NEW_VERSION}"
 
-  official-release:
-    # Only run for pushes to main when CI passes
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha }}
+                  # Push changes
+                  git push origin main --tags || {
+                    echo "Failed to push changes"
+                    exit 1
+                  }
 
-      - name: Calculate Version
-        id: version
-        run: |
-          # Get PR number from merge commit
-          PR_NUMBER=$(git log -1 --pretty=format:%s | grep -oP 'Merge pull request #\K[0-9]+' || echo "")
-          if [ -n "$PR_NUMBER" ]; then
-            # Get the latest beta version for this PR
-            BETA_VERSION=$(gh release list --limit 100 | grep "beta-.*-pr${PR_NUMBER}\." | head -n1 | awk '{print $1}')
-            if [ -n "$BETA_VERSION" ]; then
-              # Extract version from beta (beta-X.X.X-prN.M -> X.X.X)
-              NEW_VERSION=$(echo "$BETA_VERSION" | sed -E 's/^v?beta-([0-9]+\.[0-9]+\.[0-9]+)-pr[0-9]+\.[0-9]+$/\1/')
-              echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-          fi
-          echo "No beta version found - this should not happen" >&2
-          exit 1
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.21'
+            - name: Build Package
+              run: |
+                echo "Building package version ${{ steps.version.outputs.version }}..."
+                npm run build
 
-      - name: Build Binaries
-        run: |
-          GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64
-          GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64
+            - name: Publish to npm
+              run: |
+                echo "Publishing version ${{ steps.version.outputs.version }}..."
+                npm publish || {
+                  echo "Failed to publish package"
+                  exit 1
+                }
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Official Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          gh release create "v$VERSION" \
-            --title "Release v$VERSION" \
-            --notes "$(git log -1 --pretty=format:%b)" \
-            --prerelease=false \
-            nix-foundry-linux-amd64 \
-            nix-foundry-darwin-amd64 \
-            nix-foundry-darwin-arm64
+            - name: Create GitHub Release
+              uses: actions/github-script@v7
+              with:
+                  script: |
+                    const fs = require('fs');
+                    const version = 'v${{ steps.version.outputs.version }}';
+
+                    // Read the latest entry from CHANGELOG.md
+                    const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+                    const latestEntry = changelog.split(/^## /m)[1].trim();
+
+                    await github.rest.repos.createRelease({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      tag_name: version,
+                      name: version,
+                      body: latestEntry,
+                      draft: false,
+                      prerelease: false
+                    });
