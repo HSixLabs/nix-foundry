@@ -27,10 +27,7 @@
           { "type": "feat", "scope": "api", "release": "minor" },
           { "type": "fix", "scope": "deps", "release": "patch" },
           { "type": "go", "scope": "mod", "release": "patch" }
-        ],
-        "parserOpts": {
-          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"]
-        }
+        ]
       }
     ],
     "@semantic-release/release-notes-generator",
