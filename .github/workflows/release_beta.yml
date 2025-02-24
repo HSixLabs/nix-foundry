@@ -34,7 +34,8 @@ jobs:
         needs: [check_release, build]
         if: |
             github.event.pull_request.draft == false &&
-            needs.check_release.outputs.should_publish == 'true'
+            needs.check_release.outputs.should_publish == 'true' &&
+            needs.build.result == 'success'
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4

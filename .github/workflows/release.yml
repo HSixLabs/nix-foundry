@@ -41,9 +41,8 @@ jobs:
     version_and_publish:
         needs: [test, check_release, build]
         if: |
-            (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
-            (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-            needs.check_release.outputs.release_type
+            (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
