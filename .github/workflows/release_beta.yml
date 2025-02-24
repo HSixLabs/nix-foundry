@@ -50,6 +50,7 @@ jobs:
               run: |
                   git config --global user.name "github-actions[bot]"
                   git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                  git config --global --add safe.directory "*"
             - name: Version and Publish Beta
               id: version
               run: |
@@ -60,6 +61,7 @@ jobs:
 
                   # Get all commits in the PR
                   git fetch origin main
+                  git checkout ${{ github.event.pull_request.head.sha }}
                   PR_COMMITS=$(git log --no-merges --format=%B origin/main..HEAD)
                   echo "PR commits:"
                   echo "$PR_COMMITS"
@@ -163,7 +165,8 @@ jobs:
                   go test -v ./...
 
                   # Create and push tag
-                  git add go.mod
+                  git add go.mod PR_CHANGELOG.md
+                  git status
                   git commit -m "[RELEASE] v${BETA_VERSION}"
                   git tag -a "v${BETA_VERSION}" -m "Release version ${BETA_VERSION}"
 
