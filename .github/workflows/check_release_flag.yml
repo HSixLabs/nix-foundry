@@ -20,10 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+      contents: read
     outputs:
       should_publish: ${{ steps.check-version.outputs.should_publish }}
       release_type: ${{ steps.check-version.outputs.release_type }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check Release Flag
         id: check-version
         uses: actions/github-script@v7
@@ -35,47 +40,46 @@ jobs:
               pull_number: process.env.PR_NUMBER || context.payload.pull_request.number
             });
 
-            let releaseType = '';
-            const labels = pr.data.labels.map(l => l.name);
-            const title = pr.data.title.toLowerCase();
-            const body = pr.data.body || '';
+            // Get the latest commit message
+            const execSync = require('child_process').execSync;
+            const latestCommit = execSync('git log -1 --pretty=format:%s').toString().toLowerCase();
+            console.log('Latest commit:', latestCommit);
 
             // Valid scopes from commitlint config
             const validScopes = ['api', 'deps', 'mod'];
             const scopePattern = new RegExp(`^(feat|fix)\\((${validScopes.join('|')})\\)!?:`);
 
+            let releaseType = '';
+
             // Check for breaking changes
             if (
-              labels.includes('major') ||
-              title.match(/^(feat|fix)!:/) ||
-              title.match(new RegExp(`^(feat|fix)\\((${validScopes.join('|')})\\)!:`)) ||
-              body.includes('BREAKING CHANGE:')
+              latestCommit.match(/^(feat|fix)!:/) ||
+              latestCommit.match(new RegExp(`^(feat|fix)\\((${validScopes.join('|')})\\)!:`)) ||
+              latestCommit.includes('breaking change:')
             ) {
               releaseType = 'major';
             }
-            // Check for features (minor)
+            // Check for features
             else if (
-              labels.includes('minor') ||
-              title.startsWith('feat:') ||
-              title.match(/^feat\([^)]+\):/)
+              latestCommit.startsWith('feat:') ||
+              latestCommit.match(/^feat\([^)]+\):/)
             ) {
               releaseType = 'minor';
             }
             // Check for patches
             else if (
-              labels.includes('patch') ||
-              title.startsWith('fix:') ||
-              title.match(/^fix\([^)]+\):/) ||
-              title.startsWith('perf:') ||
-              title.match(/^perf\([^)]+\):/) ||
-              title.startsWith('refactor:') ||
-              title.match(/^refactor\([^)]+\):/) ||
-              title.startsWith('build:') ||
-              title.match(/^build\([^)]+\):/) ||
-              title.startsWith('deps:') ||
-              title.match(/^deps\([^)]+\):/) ||
-              title.startsWith('go:') ||
-              title.match(/^go\([^)]+\):/)
+              latestCommit.startsWith('fix:') ||
+              latestCommit.match(/^fix\([^)]+\):/) ||
+              latestCommit.startsWith('perf:') ||
+              latestCommit.match(/^perf\([^)]+\):/) ||
+              latestCommit.startsWith('refactor:') ||
+              latestCommit.match(/^refactor\([^)]+\):/) ||
+              latestCommit.startsWith('build:') ||
+              latestCommit.match(/^build\([^)]+\):/) ||
+              latestCommit.startsWith('deps:') ||
+              latestCommit.match(/^deps\([^)]+\):/) ||
+              latestCommit.startsWith('go:') ||
+              latestCommit.match(/^go\([^)]+\):/)
             ) {
               releaseType = 'patch';
             }
@@ -83,6 +87,8 @@ jobs:
             const shouldPublish = releaseType ? 'true' : 'false';
             core.setOutput('should_publish', shouldPublish);
             core.setOutput('release_type', releaseType);
+
+            console.log('Release type:', releaseType);
             return { shouldPublish, releaseType };
 
       - name: Comment on PR if no release flag
@@ -90,20 +96,13 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `No release flag detected. To trigger a release, use one of these methods:
-
-            1. Add a label:
-               - \`major\` - Breaking changes
-               - \`minor\` - New features
-               - \`patch\` - Bug fixes and improvements
-
-            2. Use conventional commit format in PR title:
+            const body = `No release flag detected in the latest commit. To trigger a release, use conventional commit format:
 
             Major version (Breaking changes):
             - \`feat!: change configuration file format\`
             - \`feat(api)!: change API response format\`
             - \`fix!: remove deprecated function\`
-            - Or include \`BREAKING CHANGE:\` in the PR description
+            - Include \`BREAKING CHANGE:\` in the commit message
 
             Minor version (Features):
             - \`feat: add new command\`

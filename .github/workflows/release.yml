@@ -1,6 +1,8 @@
 name: Release
 
 on:
+    push:
+        branches: [main]
     pull_request:
         types: [closed]
 
@@ -9,19 +11,21 @@ jobs:
         uses: ./.github/workflows/ci.yml
 
     check_release:
+        if: github.event_name == 'pull_request'
         uses: ./.github/workflows/check_release_flag.yml
         with:
             pull_request_number: ${{ github.event.pull_request.number }}
 
     build:
-        needs: [test, check_release]
+        needs: [test]
         if: |
-            github.event.pull_request.merged == true &&
-            github.event.pull_request.base.ref == 'main' &&
-            needs.check_release.outputs.should_publish == 'true'
+            (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
             - uses: actions/setup-node@v4
               with:
                   node-version-file: ".nvmrc"
@@ -39,11 +43,10 @@ jobs:
               run: npm run test
 
     version_and_publish:
-        needs: [test, check_release, build]
+        needs: [test, build]
         if: |
-            github.event.pull_request.merged == true &&
-            !contains(github.event.pull_request.title, '[RELEASE]') &&
-            needs.check_release.outputs.should_publish == 'true'
+            (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+            (github.event_name == 'push' && github.ref == 'refs/heads/main')
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -71,7 +74,31 @@ jobs:
                   CURRENT_VERSION=$(node -p "require('./package.json').version")
                   echo "Current version: ${CURRENT_VERSION}"
 
-                  case "${{ needs.check_release.outputs.release_type }}" in
+                  # Get the latest commit message
+                  COMMIT_MSG=$(git log -1 --pretty=format:%s)
+                  echo "Latest commit: ${COMMIT_MSG}"
+
+                  # Skip if it's a release commit
+                  if [[ $COMMIT_MSG == "[RELEASE]"* ]]; then
+                    echo "Skipping release for release commit"
+                    exit 0
+                  fi
+
+                  # Determine release type from commit message
+                  if [[ $COMMIT_MSG =~ ^feat!: || $COMMIT_MSG =~ ^fix!: || $COMMIT_MSG =~ "BREAKING CHANGE:" ]]; then
+                    RELEASE_TYPE="major"
+                  elif [[ $COMMIT_MSG =~ ^feat: ]]; then
+                    RELEASE_TYPE="minor"
+                  elif [[ $COMMIT_MSG =~ ^(fix|perf|refactor|build|deps|go): ]]; then
+                    RELEASE_TYPE="patch"
+                  else
+                    echo "No release type found in commit message"
+                    exit 0
+                  fi
+
+                  echo "Release type: ${RELEASE_TYPE}"
+
+                  case "$RELEASE_TYPE" in
                     "major")
                       NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'major')")
                       ;;
@@ -153,11 +180,13 @@ jobs:
                   echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
 
             - name: Build Package
+              if: steps.version.outputs.version != ''
               run: |
                 echo "Building package version ${{ steps.version.outputs.version }}..."
                 npm run build
 
             - name: Publish to npm
+              if: steps.version.outputs.version != ''
               run: |
                 echo "Publishing version ${{ steps.version.outputs.version }}..."
                 npm publish || {
@@ -169,6 +198,7 @@ jobs:
                   NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Create GitHub Release
+              if: steps.version.outputs.version != ''
               uses: actions/github-script@v7
               with:
                   script: |
