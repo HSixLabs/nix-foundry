@@ -33,6 +33,8 @@ jobs:
         id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: ""
+          GITHUB_ACTIONS: ""
         uses: cycjimmy/semantic-release-action@v4
         with:
           extra_plugins: |
