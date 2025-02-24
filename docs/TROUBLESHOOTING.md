@@ -26,35 +26,6 @@ ls -la ~/.config/nix-foundry
 chmod 755 ~/.config/nix-foundry
 ```
 
-## Package Issues
-
-### Package Installation Fails
-
-**Problem**: Package not found or installation fails.
-
-**Solution**:
-```bash
-# Verify package name
-nix-foundry config show packages
-
-# Try installing with verbose output
-nix-foundry install nodejs --verbose
-```
-
-### Package Conflicts
-
-**Problem**: Package conflicts with existing installation.
-
-**Solution**:
-```bash
-# Remove conflicting package
-nix-foundry config set package remove nodejs
-
-# Reinstall package
-nix-foundry config set package add nodejs
-nix-foundry config apply
-```
-
 ## Configuration Issues
 
 ### Invalid Configuration
@@ -64,31 +35,66 @@ nix-foundry config apply
 **Solution**:
 ```bash
 # Reset to default configuration
-nix-foundry config init --force
+nix-foundry config init
 
 # Show current configuration
 nix-foundry config show
 ```
+
+### Configuration Not Found
+
+**Problem**: Configuration file missing.
+
+**Solution**:
+```bash
+# Initialize new configuration
+nix-foundry config init
+
+# For team configuration
+nix-foundry config init --type team --name myteam
+
+# For project configuration
+nix-foundry config init --type project
+```
+
+## Package Issues
+
+### Package Installation Fails
+
+**Problem**: Package installation through config apply fails.
+
+**Solution**:
+1. Verify configuration:
+   ```bash
+   nix-foundry config show
+   ```
+
+2. Try applying configuration:
+   ```bash
+   nix-foundry config apply
+   ```
 
 ### Shell Integration
 
 **Problem**: Shell not properly configured.
 
 **Solution**:
-```bash
-# Set shell in configuration
-nix-foundry config set shell zsh
+1. Set shell in configuration:
+   ```bash
+   nix-foundry config set shell zsh
+   ```
 
-# Apply changes
-nix-foundry config apply
-```
+2. Apply changes:
+   ```bash
+   nix-foundry config apply
+   ```
 
 ## Platform-Specific Issues
 
 ### macOS
 
 - Ensure Command Line Tools are installed
-- Check SIP status
+- Multi-user mode is required
 - Verify Rosetta 2 for ARM systems
 
 ### Linux
@@ -112,15 +118,15 @@ nix-foundry --version
 # Show detailed configuration
 nix-foundry config show
 
-# List installed packages
-nix-foundry config show packages
+# List available configurations
+nix-foundry config list
 
 # Enable verbose logging
-nix-foundry --verbose install nodejs
+nix-foundry --verbose install
 ```
 
 ## Getting Help
 
 - Run `nix-foundry --help` for command documentation
 - Check command-specific help with `nix-foundry <command> --help`
-- Review logs in `~/.config/nix-foundry/logs`
+- Review configuration in `~/.config/nix-foundry/config.yaml`

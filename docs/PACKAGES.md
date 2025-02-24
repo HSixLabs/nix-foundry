@@ -1,58 +1,59 @@
 # Packages
 
-Nix Foundry provides access to the entire Nixpkgs collection, with convenient package management and grouping features.
-
-## Package Access
-
-Nix Foundry can install any package available in the Nixpkgs repository. The examples below show common packages, but you're not limited to these - any package in Nixpkgs can be installed.
-
-## Common Package Groups
-
-These are some commonly used package groups, provided for convenience:
-
-### Development
-- `git`: Git version control
-- `make`: GNU Make build tool
-- `gcc`: GNU Compiler Collection
-And many more development tools available in Nixpkgs.
-
-### Web
-- `nodejs`: Node.js runtime with npm
-- `yarn`: Package manager
-- `nginx`: Web server
-Plus any other web development tools from Nixpkgs.
-
-### Data
-- `postgresql`: PostgreSQL database
-- `redis`: Redis in-memory store
-- `mongodb`: MongoDB database
-And all other database systems available in Nixpkgs.
-
-## Installation
-
-Install any Nixpkgs package:
-```bash
-# Install any package from Nixpkgs
-nix-foundry install <package-name>
-
-# Examples
-nix-foundry install nodejs
-nix-foundry install python3
-nix-foundry install vscode
-```
+Nix Foundry provides access to the entire Nixpkgs collection through a simple YAML-based configuration system.
 
 ## Configuration
 
-Packages can be specified in your configuration:
+Define your packages in your configuration file:
 ```yaml
 nix:
   packages:
-    core:      # Required packages
-      - git
+    core:
+      - git    # Required packages
       - curl
     optional:  # Additional packages
-      - nodejs
+      - nodejs_20
       - any-nixpkgs-package
+```
+
+## Installation
+
+During installation, Nix Foundry provides a wizard to help you select common development tools:
+
+### Programming Languages
+- Python (python311 with pip)
+- Node.js (nodejs_20 with npm)
+- Go (go_1_22 with gopls)
+- Java (openjdk17 with maven)
+- C/C++ (gcc with make)
+
+### Development Tools
+- Git (git)
+- Docker (docker)
+- Kubernetes CLI (kubectl)
+- Terraform (terraform)
+- GitHub CLI (gh)
+
+### Editors
+- VS Code (vscode)
+- IntelliJ IDEA Community (jetbrains.idea-community)
+- Neovim
+- GNU Emacs
+- Sublime Text
+
+## Package Management
+
+After installation, manage packages through the configuration system:
+
+```bash
+# Initialize configuration
+nix-foundry config init
+
+# Add packages to configuration
+nix-foundry config set package add nodejs_20
+
+# Apply configuration to install packages
+nix-foundry config apply
 ```
 
 ## Platform Support
@@ -62,33 +63,4 @@ Packages are automatically handled based on your platform:
 - macOS: Intel and ARM packages automatically selected
 - WSL2: Linux packages with Windows integration
 
-## Language Support
-
-Language packages include their essential tools. For example:
-- `python3`: Python with pip
-- `nodejs`: Node.js with npm
-- `go`: Go with gopls
-- `openjdk`: Java with Maven
-
-But you can install any language or tool available in Nixpkgs.
-
-## Finding Packages
-
-Search for available packages:
-```bash
-# Search Nixpkgs
-nix-foundry search <query>
-
-# Show package details
-nix-foundry show <package>
-```
-
-## Best Practices
-
-1. Use core packages for essential tools
-2. Document package dependencies
-3. Use team configurations for shared dependencies
-4. Consider platform compatibility
-5. Pin package versions when needed
-
-Remember: While we provide convenient package groups and examples, you can use any package from the Nixpkgs repository with Nix Foundry.
+Remember: While we provide common development tools in the installation wizard, you can use any package from the Nixpkgs repository with Nix Foundry.

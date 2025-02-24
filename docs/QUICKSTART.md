@@ -4,7 +4,7 @@
 
 1. Install Nix Foundry:
    ```bash
-   curl -L https://nixfoundry.org/install | bash
+   nix-foundry install
    ```
 
 2. Verify installation:
@@ -26,7 +26,7 @@ This creates a default configuration in `~/.config/nix-foundry/config.yaml`.
 
 1. Install a single package:
    ```bash
-   nix-foundry install nodejs
+   nix-foundry config set package add nodejs
    ```
 
 2. Install from configuration:

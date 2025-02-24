@@ -19,13 +19,18 @@ Nix Foundry simplifies development environment management:
 
 ```bash
 # Install Nix Foundry
-curl -L https://nixfoundry.org/install | bash
-
-# Initialize configuration
-nix-foundry config init
+nix-foundry install
 
 # Install packages
-nix-foundry install nodejs
+nix-foundry config set package add nodejs
+
+# View configuration
+cat ~/.config/nix-foundry/config.yaml # Woah, my config is portable!
+
+# Apply configuration
+nix-foundry apply
+
+# Then, start a new terminal and see your environment!
 ```
 
 ## Features
@@ -50,7 +55,7 @@ nix-foundry install nodejs
 
 - **Linux**: Most major distributions
 - **macOS**: Intel and Apple Silicon
-- **Windows**: WSL2 with Ubuntu 20.04+
+- **Windows**: WSL2
 
 ## Example Configuration
 

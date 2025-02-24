@@ -4,7 +4,7 @@ Nix Foundry provides a comprehensive CLI with various commands for managing your
 
 ## Command Documentation
 
-Detailed documentation for each command is available in the [commands](./commands) directory.
+Detailed documentation for each command is available in the [commands](./commands/nix-foundry.md) directory.
 
 ## Core Commands
 
@@ -40,4 +40,4 @@ nix-foundry config init
 nix-foundry install nodejs
 ```
 
-For detailed documentation of each command, please see the [commands](./commands) directory.
+For detailed documentation of each command, please see the [commands](./commands/nix-foundry.md) directory.
