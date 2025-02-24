@@ -7,15 +7,15 @@ on:
       - completed
 
 jobs:
-  release:
-    if: github.event.workflow_run.conclusion == 'success'
+  beta-release:
+    # Only run for PRs when CI passes
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch != 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      should_release: ${{ steps.version.outputs.should_release }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,148 +34,89 @@ jobs:
               state: 'open',
               head: '${{ github.event.workflow_run.head_sha }}'
             });
-            if (prs.length > 0) {
-              console.log('PR found:', prs[0].number);
-              return prs[0].number;
+            if (prs.length === 0) {
+              throw new Error('No PR found for this commit');
             }
-            return '';
+            return prs[0].number;
           result-encoding: string
 
-      - name: Determine Version
+      - name: Calculate Next Version
         id: version
         run: |
-          if [[ -n "${{ steps.pr.outputs.result }}" ]]; then
-            # This is a PR build
-            # Get the next version based on PR commits
-            COMMITS=$(gh pr view ${{ steps.pr.outputs.result }} --json commits --jq '.commits[]')
-            COMMIT_MSGS=$(echo "$COMMITS" | jq -r '.messageHeadline + "\n" + (.messageBody // "")')
+          # Get latest release version (non-beta)
+          LATEST_VERSION=$(gh release list --limit 100 | grep -v beta | head -n1 | awk '{print $1}' || echo "v0.0.0")
+          LATEST_VERSION=${LATEST_VERSION#v}
 
-            # Get latest release version
-            LATEST_VERSION=$(gh release view --json tagName --jq .tagName || echo "v0.0.0")
-            LATEST_VERSION=${LATEST_VERSION#v}
+          # Split version into parts
+          IFS='.' read -r major minor patch <<< "$LATEST_VERSION"
 
-            # Split version into parts
-            IFS='.' read -r major minor patch <<< "$LATEST_VERSION"
+          # Get PR commits
+          COMMITS=$(gh pr view ${{ steps.pr.outputs.result }} --json commits --jq '.commits[]')
+          COMMIT_MSGS=$(echo "$COMMITS" | jq -r '.messageHeadline + "\n" + (.messageBody // "")')
 
-            # Define valid commit types
-            TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
+          # Define valid commit types
+          TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
 
-            # Determine version bump based on commit types
-            if echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
-              NEW_VERSION="$((major + 1)).0.0"
-            elif echo "$COMMIT_MSGS" | grep -qE '^feat(\(.+\))?:'; then
-              NEW_VERSION="${major}.$((minor + 1)).0"
-            elif echo "$COMMIT_MSGS" | grep -qE "^(fix|perf)(\(.+\))?:"; then
-              NEW_VERSION="${major}.${minor}.$((patch + 1))"
-            else
-              NEW_VERSION="${major}.${minor}.${patch}"
-            fi
-
-            # Add beta suffix with PR number and increment
-            # Get current beta count for this PR
-            BETA_COUNT=$(gh release list --limit 100 | grep "beta.pr${{ steps.pr.outputs.result }}." | wc -l)
-            BETA_COUNT=$((BETA_COUNT + 1))
-
-            NEW_VERSION="${NEW_VERSION}-beta.pr${{ steps.pr.outputs.result }}.${BETA_COUNT}"
-
-            # Check if any commit matches valid types for release
-            if echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})(\(.+\))?:" || \
-               echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || \
-               echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
-              echo "should_release=true" >> $GITHUB_OUTPUT
-            else
-              echo "should_release=false" >> $GITHUB_OUTPUT
-            fi
+          # Calculate next version based on commit types
+          if echo "$COMMIT_MSGS" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSGS" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
+            NEW_VERSION="$((major + 1)).0.0"
+          elif echo "$COMMIT_MSGS" | grep -qE '^feat(\(.+\))?:'; then
+            NEW_VERSION="${major}.$((minor + 1)).0"
+          elif echo "$COMMIT_MSGS" | grep -qE "^(fix|perf)(\(.+\))?:"; then
+            NEW_VERSION="${major}.${minor}.$((patch + 1))"
           else
-            # This is a main branch merge
-            COMMIT_MSG=$(git log -1 --pretty=format:%B)
-            PR_NUMBER=$(echo "$COMMIT_MSG" | grep -oP 'Merge pull request #\K[0-9]+' || echo "")
-
-            # Define valid commit types
-            TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|deps|go|revert"
-
-            if [ -n "$PR_NUMBER" ]; then
-              # Get the latest beta version for this PR
-              BETA_VERSION=$(gh release list --limit 100 | grep "beta.pr${PR_NUMBER}." | head -n1 | awk '{print $1}')
-              if [ -n "$BETA_VERSION" ]; then
-                # Strip beta suffix to get the version
-                NEW_VERSION=$(echo "$BETA_VERSION" | sed -E 's/-beta\.pr[0-9]+\.[0-9]+$//')
-                echo "should_release=true" >> $GITHUB_OUTPUT
-              fi
-            fi
-
-            if [ -z "$NEW_VERSION" ]; then
-              # Fallback to normal version calculation
-              LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-              LATEST_TAG=${LATEST_TAG#v}
-              IFS='.' read -r major minor patch <<< "$LATEST_TAG"
-
-              if echo "$COMMIT_MSG" | grep -qE 'BREAKING CHANGE:' || echo "$COMMIT_MSG" | grep -qE "^(${TYPES})!(\(.+\))?:"; then
-                NEW_VERSION="$((major + 1)).0.0"
-              elif echo "$COMMIT_MSG" | grep -qE '^feat(\(.+\))?:'; then
-                NEW_VERSION="${major}.$((minor + 1)).0"
-              elif echo "$COMMIT_MSG" | grep -qE "^(fix|perf)(\(.+\))?:"; then
-                NEW_VERSION="${major}.${minor}.$((patch + 1))"
-              else
-                NEW_VERSION="${major}.${minor}.${patch}"
-              fi
-              echo "should_release=true" >> $GITHUB_OUTPUT
-            fi
+            NEW_VERSION="${major}.${minor}.${patch}"
           fi
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+          # Get current beta count for this PR
+          BETA_COUNT=$(gh release list --limit 100 | grep "beta-.*-pr${{ steps.pr.outputs.result }}\." | wc -l)
+          BETA_COUNT=$((BETA_COUNT + 1))
+
+          # Format beta version: beta-X.X.X-prN.M
+          BETA_VERSION="beta-${NEW_VERSION}-pr${{ steps.pr.outputs.result }}.${BETA_COUNT}"
+          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
+          echo "next_version=$NEW_VERSION" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        if: steps.version.outputs.should_release == 'true'
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
 
       - name: Build Binaries
-        if: steps.version.outputs.should_release == 'true'
         run: |
           GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64
           GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64
           GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64
 
-      - name: Create Release
-        if: steps.version.outputs.should_release == 'true'
+      - name: Create Beta Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          IS_PR=${{ steps.pr.outputs.result != '' }}
-
-          if [[ "$IS_PR" == "true" ]]; then
-            TITLE="Beta Release $VERSION"
-            NOTES="🚧 Beta release for PR #${{ steps.pr.outputs.result }}"
-          else
-            TITLE="Release $VERSION"
-            NOTES=$(git log -1 --pretty=format:%b)
-          fi
-
+          NEXT_VERSION=${{ steps.version.outputs.next_version }}
           gh release create "v$VERSION" \
-            --title "$TITLE" \
-            --notes "$NOTES" \
-            --prerelease=$IS_PR \
+            --title "Beta Release (v$NEXT_VERSION)" \
+            --notes "🚧 Beta release for PR #${{ steps.pr.outputs.result }}\n\nThis will become v$NEXT_VERSION when merged." \
+            --prerelease=true \
             nix-foundry-linux-amd64 \
             nix-foundry-darwin-amd64 \
             nix-foundry-darwin-arm64
 
       - name: Comment on PR
-        if: steps.version.outputs.should_release == 'true' && steps.pr.outputs.result != ''
         uses: actions/github-script@v7
         with:
           script: |
             const version = '${{ steps.version.outputs.version }}'
+            const nextVersion = '${{ steps.version.outputs.next_version }}'
             const downloadUrl = `https://github.com/${{ github.repository }}/releases/download/v${version}/nix-foundry-\$(uname -s | tr '[:upper:]' '[:lower:]')-\$(uname -m)`
 
             github.rest.issues.createComment({
               issue_number: ${{ steps.pr.outputs.result }},
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 Beta release ${version} ready for testing:
+              body: `🚀 Beta release for v${nextVersion} is ready for testing:
 
               **Installation Command:**
               \`\`\`bash
@@ -184,3 +125,62 @@ jobs:
 
               [View Release](https://github.com/${{ github.repository }}/releases/tag/v${version})`
             })
+
+  official-release:
+    # Only run for main branch when CI passes
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Calculate Version
+        id: version
+        run: |
+          # Get PR number from merge commit
+          PR_NUMBER=$(git log -1 --pretty=format:%s | grep -oP 'Merge pull request #\K[0-9]+' || echo "")
+          if [ -n "$PR_NUMBER" ]; then
+            # Get the latest beta version for this PR
+            BETA_VERSION=$(gh release list --limit 100 | grep "beta-.*-pr${PR_NUMBER}\." | head -n1 | awk '{print $1}')
+            if [ -n "$BETA_VERSION" ]; then
+              # Extract version from beta (beta-X.X.X-prN.M -> X.X.X)
+              NEW_VERSION=$(echo "$BETA_VERSION" | sed -E 's/^v?beta-([0-9]+\.[0-9]+\.[0-9]+)-pr[0-9]+\.[0-9]+$/\1/')
+              echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          echo "No beta version found - this should not happen" >&2
+          exit 1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build Binaries
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o nix-foundry-linux-amd64
+          GOOS=darwin GOARCH=amd64 go build -o nix-foundry-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -o nix-foundry-darwin-arm64
+
+      - name: Create Official Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          gh release create "v$VERSION" \
+            --title "Release v$VERSION" \
+            --notes "$(git log -1 --pretty=format:%b)" \
+            --prerelease=false \
+            nix-foundry-linux-amd64 \
+            nix-foundry-darwin-amd64 \
+            nix-foundry-darwin-arm64
