@@ -1,48 +1,88 @@
-# nix-foundry
+# Nix Foundry
 
-A framework for building consistent, reproducible development environments across platforms. nix-foundry helps teams standardize their development setups using Nix, with enterprise-grade tooling and automation.
+Take your development environment anywhere with this simple YAML-based configuration manager. Nix Foundry manages extensible configurations at user, team, and project levels, ensuring consistent and reproducible development environments across platforms.
+
+[![Go Report Card](https://goreportcard.com/badge/github.com/shawnkhoffman/nix-foundry)](https://goreportcard.com/report/github.com/shawnkhoffman/nix-foundry)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+## Overview
+
+Nix Foundry simplifies development environment management:
+
+- 🚀 Simple YAML configurations that work everywhere
+- 📦 Extensible environment definitions in pure YAML
+- 🔧 User, team, and project-specific settings
+- 🌟 Consistent development environments
+- 🛠️ Cross-platform compatibility
 
 ## Quick Start
 
-1. Install Nix:
+```bash
+# Install Nix Foundry
+nix-foundry install
 
-   ```bash
-   sh <(curl -L https://nixos.org/nix/install) --daemon
-   ```
+# Install packages
+nix-foundry config set package add nodejs
 
-2. Bootstrap your environment:
+# View configuration
+cat ~/.config/nix-foundry/config.yaml # Woah, my config is portable!
 
-   ```bash
-   export GITHUB_TOKEN="your-token"
-   curl -H "Authorization: token ${GITHUB_TOKEN}" \
-        -L https://raw.githubusercontent.com/shawnkhoffman/nix-foundry/main/install.sh | \
-        bash -s -- install
-   ```
+# Apply configuration
+nix-foundry apply
+
+# Then, start a new terminal and see your environment!
+```
 
 ## Features
 
-- 🏗️ **Cross-Platform**: Consistent environments across macOS, Linux, and Windows (WSL2)
-- 🚀 **Zero-Config**: Smart defaults with automatic platform detection
-- 🔄 **Enterprise-Ready**: Multi-user support, quality gates, CI/CD integration
-- 🛠️ **Development Tools**: Pre-configured Git, VSCode, Shell environments
-- 📦 **Quality Assurance**: Pre-commit hooks, testing, semantic versioning
-- 🔧 **Extensible**: Modular design for team customization
-
-## Supported Platforms
-
-- macOS (Apple Silicon & Intel)
-- Linux (x86_64 & ARM)
-- Windows (via WSL2)
-
-## Customization
-
-- Add packages to `modules/` (system) or `home/` (user)
-- Create `~/.zshrc.local` for machine-specific settings
-- Modify Git/VSCode settings in respective `.nix` files
+- **Simple Configuration**: Pure YAML-based environment definitions
+- **Portable Environments**: Take your development setup anywhere
+- **Multi-Level Configs**: User, team, and project configurations
+- **Extensible System**: Build on existing configurations
+- **Cross-Platform**: Linux, macOS, and Windows (WSL2)
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Platform Setup](docs/PLATFORMS.md)
-- [Development](docs/DEVELOPMENT.md)
-- [Contributing](CONTRIBUTING.md)
+- [Quick Start Guide](docs/QUICKSTART.md)
+- [Configuration Guide](docs/CONFIGURATION.md)
+- [Package Management](docs/PACKAGES.md)
+- [Platform Support](docs/PLATFORMS.md)
+- [Command Reference](docs/COMMANDS.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Contributing](docs/CONTRIBUTING.md)
+
+## Platform Support
+
+- **Linux**: Most major distributions
+- **macOS**: Intel and Apple Silicon
+- **Windows**: WSL2
+
+## Example Configuration
+
+```yaml
+version: 'v1'
+kind: 'NixConfig'
+type: 'project'
+metadata:
+  name: 'web-dev'
+  description: 'Web development environment'
+settings:
+  shell: 'zsh'
+  autoUpdate: true
+nix:
+  packages:
+    core:
+      - git
+      - nodejs
+    optional:
+      - postgresql
+      - redis
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for details.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
