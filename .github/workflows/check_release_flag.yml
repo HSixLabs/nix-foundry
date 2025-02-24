@@ -1,142 +1,42 @@
 name: Check Release Flag
 on:
-  workflow_call:
-    inputs:
-      pull_request_number:
-        required: true
-        type: number
-    outputs:
-      should_publish:
-        description: "Whether a release should be published"
-        value: ${{ jobs.check_flag.outputs.should_publish }}
-      release_type:
-        description: "Type of release (major/minor/patch)"
-        value: ${{ jobs.check_flag.outputs.release_type }}
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   check_flag:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
-    outputs:
-      should_publish: ${{ steps.check-version.outputs.should_publish }}
-      release_type: ${{ steps.check-version.outputs.release_type }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Check Release Flag
-        id: check-version
         uses: actions/github-script@v7
         with:
           script: |
             const pr = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: process.env.PR_NUMBER || context.payload.pull_request.number
+              pull_number: context.payload.pull_request.number
             });
 
-            // Get the latest commit message
-            const execSync = require('child_process').execSync;
-            const latestCommit = execSync('git log -1 --pretty=format:%s').toString();
-            console.log('Latest commit:', latestCommit);
+            const commit = await github.rest.repos.getCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.data.head.sha
+            });
 
-            // Valid scopes from commitlint config
-            const validScopes = ['api', 'deps', 'mod'];
-            const scopeRegex = `(?:\\((?:${validScopes.join('|')})?\\))?`;
+            const commitMessage = commit.data.commit.message;
+            console.log('Commit message:', commitMessage);
 
             let releaseType = '';
 
-            // Check for breaking changes
-            if (
-              latestCommit.startsWith('feat!:') ||
-              latestCommit.startsWith('fix!:') ||
-              latestCommit.includes('BREAKING CHANGE:')
-            ) {
+            if (commitMessage.startsWith('feat!:') || commitMessage.startsWith('fix!:') || commitMessage.includes('BREAKING CHANGE:')) {
               releaseType = 'major';
-            }
-            // Check for features
-            else if (latestCommit.startsWith('feat:')) {
+            } else if (commitMessage.startsWith('feat:')) {
               releaseType = 'minor';
-            }
-            // Check for patches
-            else if (
-              latestCommit.startsWith('fix:') ||
-              latestCommit.startsWith('perf:') ||
-              latestCommit.startsWith('refactor:') ||
-              latestCommit.startsWith('build:') ||
-              latestCommit.startsWith('deps:') ||
-              latestCommit.startsWith('go:')
-            ) {
+            } else if (commitMessage.startsWith('fix:') || commitMessage.startsWith('perf:') || commitMessage.startsWith('refactor:') || commitMessage.startsWith('build:') || commitMessage.startsWith('deps:') || commitMessage.startsWith('go:')) {
               releaseType = 'patch';
             }
 
             const shouldPublish = releaseType ? 'true' : 'false';
             core.setOutput('should_publish', shouldPublish);
             core.setOutput('release_type', releaseType);
-
-            console.log('Release type:', releaseType);
-            return { shouldPublish, releaseType };
-
-      - name: Comment on PR if no release flag
-        if: steps.check-version.outputs.should_publish != 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = `No release flag detected in the latest commit. To trigger a release, use conventional commit format:
-
-            Major version (Breaking changes):
-            - \`feat!: breaking change to command interface\`
-            - \`feat(mod)!: change module system\`
-            - \`fix!: remove deprecated command\`
-            - Include \`BREAKING CHANGE:\` in the commit message
-
-            Minor version (Features):
-            - \`feat: add new command\`
-            - \`feat(mod): add new module feature\`
-
-            Patch version:
-            - \`fix: fix issue\`
-            - \`fix(mod): fix module issue\`
-            - \`perf: improve performance\`
-            - \`refactor: improve code structure\`
-            - \`build: update build system\`
-            - \`deps: update dependencies\`
-            - \`go: update Go version\`
-
-            No version bump:
-            - \`style: format code\`
-            - \`test: add new tests\`
-            - \`ci: update workflows\`
-            - \`docs: update readme\`
-
-            Valid scopes: mod, deps
-            Note: Scopes are optional`;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: process.env.PR_NUMBER || context.issue.number,
-              per_page: 1,
-              page: 1
-            });
-
-            const botComment = comments.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('No release flag detected')
-            );
-
-            if (!botComment) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: process.env.PR_NUMBER || context.issue.number,
-                body: body
-              });
-            }
-        env:
-          PR_NUMBER: ${{ inputs.pull_request_number }}
