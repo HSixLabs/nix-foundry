@@ -3,6 +3,11 @@ on:
     pull_request:
         types: [opened, edited, reopened, synchronize]
 
+# Add permissions block
+permissions:
+    contents: write
+    pull-requests: write
+
 jobs:
     check_release:
         uses: ./.github/workflows/check_release_flag.yml
@@ -17,10 +22,13 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
             - uses: actions/setup-go@v5
               with:
                   go-version-file: 'go.mod'
                   cache: true
+            - name: Build
+              run: go build -v ./...
 
     version_and_publish:
         needs: [check_release, build]
@@ -32,6 +40,7 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
             - uses: actions/setup-go@v5
               with:
                   go-version-file: 'go.mod'
@@ -149,7 +158,10 @@ jobs:
                   echo "version=${BETA_VERSION}" >> $GITHUB_OUTPUT
 
             - name: Push changes
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
+                  git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
                   git push origin HEAD:${GITHUB_HEAD_REF}
                   git push origin "v${{ steps.version.outputs.version }}"
 
