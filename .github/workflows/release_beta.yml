@@ -136,36 +136,43 @@ jobs:
                   sed -i "s|^module.*|module ${MODULE_PATH}|" go.mod
 
                   # Generate changelog for PR
-                  echo "## Changes in this Beta Release" > PR_CHANGELOG.md
-                  echo "" >> PR_CHANGELOG.md
+                  CHANGELOG=""
+                  CHANGELOG+="## Changes in this Beta Release\n\n"
 
                   # Group commits by type
-                  echo "### Breaking Changes" >> PR_CHANGELOG.md
-                  echo "$PR_COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" >> PR_CHANGELOG.md || true
-                  echo "" >> PR_CHANGELOG.md
+                  BREAKING_CHANGES=$(echo "$PR_COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" || true)
+                  if [ ! -z "$BREAKING_CHANGES" ]; then
+                    CHANGELOG+="### Breaking Changes\n${BREAKING_CHANGES}\n\n"
+                  fi
 
-                  echo "### Features" >> PR_CHANGELOG.md
-                  echo "$PR_COMMITS" | grep "^feat:" >> PR_CHANGELOG.md || true
-                  echo "" >> PR_CHANGELOG.md
+                  FEATURES=$(echo "$PR_COMMITS" | grep "^feat:" || true)
+                  if [ ! -z "$FEATURES" ]; then
+                    CHANGELOG+="### Features\n${FEATURES}\n\n"
+                  fi
 
-                  echo "### Bug Fixes" >> PR_CHANGELOG.md
-                  echo "$PR_COMMITS" | grep "^fix:" >> PR_CHANGELOG.md || true
-                  echo "" >> PR_CHANGELOG.md
+                  FIXES=$(echo "$PR_COMMITS" | grep "^fix:" || true)
+                  if [ ! -z "$FIXES" ]; then
+                    CHANGELOG+="### Bug Fixes\n${FIXES}\n\n"
+                  fi
 
-                  echo "### Performance Improvements" >> PR_CHANGELOG.md
-                  echo "$PR_COMMITS" | grep "^perf:" >> PR_CHANGELOG.md || true
-                  echo "" >> PR_CHANGELOG.md
+                  PERF=$(echo "$PR_COMMITS" | grep "^perf:" || true)
+                  if [ ! -z "$PERF" ]; then
+                    CHANGELOG+="### Performance Improvements\n${PERF}\n\n"
+                  fi
 
-                  echo "### Other Changes" >> PR_CHANGELOG.md
-                  echo "$PR_COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" >> PR_CHANGELOG.md || true
-                  echo "" >> PR_CHANGELOG.md
+                  OTHER=$(echo "$PR_COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" || true)
+                  if [ ! -z "$OTHER" ]; then
+                    CHANGELOG+="### Other Changes\n${OTHER}\n\n"
+                  fi
+
+                  echo "$CHANGELOG" > temp_changelog.txt
 
                   # Build and test with new version
                   go build -v ./...
                   go test -v ./...
 
                   # Create and push tag
-                  git add go.mod PR_CHANGELOG.md
+                  git add go.mod
                   git status
                   git commit -m "[RELEASE] v${BETA_VERSION}"
                   git tag -a "v${BETA_VERSION}" -m "Release version ${BETA_VERSION}"
@@ -189,7 +196,7 @@ jobs:
                   script: |
                     const fs = require('fs');
                     const betaVersion = '${{ steps.version.outputs.beta_version }}';
-                    const changelog = fs.readFileSync('PR_CHANGELOG.md', 'utf8');
+                    const changelog = fs.readFileSync('temp_changelog.txt', 'utf8');
 
                     const body = `🚀 Beta Release Published!
 
