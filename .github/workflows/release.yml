@@ -48,9 +48,8 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  ref: main
-                  token: ${{ secrets.GITHUB_TOKEN }}
                   fetch-depth: 0
+                  token: ${{ secrets.GITHUB_TOKEN }}
             - uses: actions/setup-go@v5
               with:
                   go-version-file: 'go.mod'
@@ -67,45 +66,57 @@ jobs:
                   CURRENT_VERSION=$(grep -m1 "^module" go.mod | awk '{print $2}' | awk -F/ '{print $NF}' | sed 's/v//')
                   echo "Current version: ${CURRENT_VERSION}"
 
-                  # Get the latest commit message
-                  COMMIT_MSG=$(git log -1 --pretty=format:%s)
-                  echo "Latest commit: ${COMMIT_MSG}"
+                  # Get commits since last tag
+                  LAST_TAG=$(git describe --tags --match "v*" --abbrev=0 2>/dev/null || echo "v0.0.0")
+                  echo "Last tag: ${LAST_TAG}"
 
-                  # Skip if it's a release commit
-                  if [[ $COMMIT_MSG == "[RELEASE]"* ]]; then
-                    echo "Skipping release for release commit"
-                    exit 0
-                  fi
+                  # Get all commits since last tag
+                  COMMITS=$(git log --no-merges --format=%B ${LAST_TAG}..HEAD)
+                  echo "Commits since last tag:"
+                  echo "$COMMITS"
 
-                  # Determine release type from commit message
-                  if [[ $COMMIT_MSG =~ ^feat!: || $COMMIT_MSG =~ ^fix!: || $COMMIT_MSG =~ "BREAKING CHANGE:" ]]; then
-                    RELEASE_TYPE="major"
-                  elif [[ $COMMIT_MSG =~ ^feat: ]]; then
-                    RELEASE_TYPE="minor"
-                  elif [[ $COMMIT_MSG =~ ^(fix|perf|refactor|build|deps|go): ]]; then
-                    RELEASE_TYPE="patch"
-                  else
-                    echo "No release type found in commit message"
+                  # Determine release type from commits
+                  RELEASE_TYPE=""
+                  while IFS= read -r COMMIT_MSG; do
+                    if [[ -z "$COMMIT_MSG" ]]; then
+                      continue
+                    fi
+
+                    if [[ "$COMMIT_MSG" =~ ^feat!: || "$COMMIT_MSG" =~ ^fix!: || "$COMMIT_MSG" =~ "BREAKING CHANGE:" ]]; then
+                      RELEASE_TYPE="major"
+                      break
+                    elif [[ -z "$RELEASE_TYPE" && "$COMMIT_MSG" =~ ^feat: ]]; then
+                      RELEASE_TYPE="minor"
+                    elif [[ -z "$RELEASE_TYPE" && "$COMMIT_MSG" =~ ^(fix|perf|refactor|build|deps|go): ]]; then
+                      RELEASE_TYPE="patch"
+                    fi
+                  done <<< "$COMMITS"
+
+                  if [[ -z "$RELEASE_TYPE" ]]; then
+                    echo "No release type found in commits"
                     exit 0
                   fi
 
                   echo "Release type: ${RELEASE_TYPE}"
 
                   # Calculate new version using go version comparison
+                  LATEST_VERSION=${LAST_TAG#v}
+                  echo "Latest version: ${LATEST_VERSION}"
+
                   case "$RELEASE_TYPE" in
                     "major")
-                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
+                      MAJOR=$(echo $LATEST_VERSION | cut -d. -f1)
                       NEW_VERSION="$((MAJOR + 1)).0.0"
                       ;;
                     "minor")
-                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-                      MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
+                      MAJOR=$(echo $LATEST_VERSION | cut -d. -f1)
+                      MINOR=$(echo $LATEST_VERSION | cut -d. -f2)
                       NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
                       ;;
                     "patch")
-                      MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-                      MINOR=$(echo $CURRENT_VERSION | cut -d. -f2)
-                      PATCH=$(echo $CURRENT_VERSION | cut -d. -f3)
+                      MAJOR=$(echo $LATEST_VERSION | cut -d. -f1)
+                      MINOR=$(echo $LATEST_VERSION | cut -d. -f2)
+                      PATCH=$(echo $LATEST_VERSION | cut -d. -f3)
                       NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
                       ;;
                     *)
@@ -124,34 +135,25 @@ jobs:
                   echo "## [${NEW_VERSION}] - $(date +%Y-%m-%d)" > CHANGELOG.new.md
                   echo "" >> CHANGELOG.new.md
 
-                  # Get all commits since last tag
-                  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-                  if [ -n "$LAST_TAG" ]; then
-                    COMMITS=$(git log ${LAST_TAG}..HEAD --pretty=format:"* %s (%h)" --no-merges)
-                  else
-                    COMMITS=$(git log --pretty=format:"* %s (%h)" --no-merges)
-                  fi
-
                   # Group commits by type
                   echo "### Breaking Changes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep -E "^\\* (feat|fix)!:" >> CHANGELOG.new.md || true
-                  echo "$COMMITS" | grep -B1 "BREAKING CHANGE:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" >> CHANGELOG.new.md || true
                   echo "" >> CHANGELOG.new.md
 
                   echo "### Features" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^\\* feat:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep "^feat:" >> CHANGELOG.new.md || true
                   echo "" >> CHANGELOG.new.md
 
                   echo "### Bug Fixes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^\\* fix:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep "^fix:" >> CHANGELOG.new.md || true
                   echo "" >> CHANGELOG.new.md
 
                   echo "### Performance Improvements" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep "^\\* perf:" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep "^perf:" >> CHANGELOG.new.md || true
                   echo "" >> CHANGELOG.new.md
 
                   echo "### Other Changes" >> CHANGELOG.new.md
-                  echo "$COMMITS" | grep -vE "^\\* (feat|fix|perf):" >> CHANGELOG.new.md || true
+                  echo "$COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" >> CHANGELOG.new.md || true
                   echo "" >> CHANGELOG.new.md
 
                   # Prepend new changelog to existing one
@@ -166,6 +168,7 @@ jobs:
 
                   # Build and test with new version
                   go build -v ./...
+                  go test -v ./...
 
                   # Commit changes
                   git add go.mod CHANGELOG.md

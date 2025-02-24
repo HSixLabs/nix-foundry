@@ -41,6 +41,7 @@ jobs:
               with:
                   fetch-depth: 0
                   token: ${{ secrets.GITHUB_TOKEN }}
+                  ref: ${{ github.event.pull_request.head.sha }}
             - uses: actions/setup-go@v5
               with:
                   go-version-file: 'go.mod'
@@ -57,19 +58,31 @@ jobs:
                   CURRENT_VERSION=$(grep -m1 "^module" go.mod | awk '{print $2}' | awk -F/ '{print $NF}' | sed 's/v//')
                   echo "Current version: ${CURRENT_VERSION}"
 
-                  # Get the latest commit message
-                  COMMIT_MSG=$(git log -1 --pretty=format:%s)
-                  echo "Latest commit: ${COMMIT_MSG}"
+                  # Get all commits in the PR
+                  git fetch origin main
+                  PR_COMMITS=$(git log --no-merges --format=%B origin/main..HEAD)
+                  echo "PR commits:"
+                  echo "$PR_COMMITS"
 
-                  # Determine release type from commit message
-                  if [[ $COMMIT_MSG =~ ^feat!: || $COMMIT_MSG =~ ^fix!: || $COMMIT_MSG =~ "BREAKING CHANGE:" ]]; then
-                    RELEASE_TYPE="major"
-                  elif [[ $COMMIT_MSG =~ ^feat: ]]; then
-                    RELEASE_TYPE="minor"
-                  elif [[ $COMMIT_MSG =~ ^(fix|perf|refactor|build|deps|go): ]]; then
-                    RELEASE_TYPE="patch"
-                  else
-                    echo "No release type found in commit message"
+                  # Determine release type from PR commits
+                  RELEASE_TYPE=""
+                  while IFS= read -r COMMIT_MSG; do
+                    if [[ -z "$COMMIT_MSG" ]]; then
+                      continue
+                    fi
+
+                    if [[ "$COMMIT_MSG" =~ ^feat!: || "$COMMIT_MSG" =~ ^fix!: || "$COMMIT_MSG" =~ "BREAKING CHANGE:" ]]; then
+                      RELEASE_TYPE="major"
+                      break
+                    elif [[ -z "$RELEASE_TYPE" && "$COMMIT_MSG" =~ ^feat: ]]; then
+                      RELEASE_TYPE="minor"
+                    elif [[ -z "$RELEASE_TYPE" && "$COMMIT_MSG" =~ ^(fix|perf|refactor|build|deps|go): ]]; then
+                      RELEASE_TYPE="patch"
+                    fi
+                  done <<< "$PR_COMMITS"
+
+                  if [[ -z "$RELEASE_TYPE" ]]; then
+                    echo "No release type found in PR commits"
                     exit 0
                   fi
 
@@ -78,6 +91,7 @@ jobs:
                   # Get latest release from main
                   LATEST_MAIN_VERSION=$(git describe --tags --match "v*" --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
                   LATEST_MAIN_VERSION=${LATEST_MAIN_VERSION#v}
+                  echo "Latest main version: ${LATEST_MAIN_VERSION}"
 
                   # Calculate new base version using go version comparison
                   case "$RELEASE_TYPE" in
@@ -102,6 +116,8 @@ jobs:
                       ;;
                   esac
 
+                  echo "Base version: ${BASE_VERSION}"
+
                   # Get latest beta for this base version
                   LATEST_BETA=$(git tag -l "v${BASE_VERSION}-beta*" --sort=-v:refname | head -n1)
                   if [[ -z "$LATEST_BETA" ]]; then
@@ -121,29 +137,25 @@ jobs:
                   echo "## Changes in this Beta Release" > PR_CHANGELOG.md
                   echo "" >> PR_CHANGELOG.md
 
-                  # Get all commits in this PR
-                  COMMITS=$(git log --pretty=format:"* %s (%h)" --no-merges origin/main..HEAD)
-
                   # Group commits by type
                   echo "### Breaking Changes" >> PR_CHANGELOG.md
-                  echo "$COMMITS" | grep -E "^\\* (feat|fix)!:" >> PR_CHANGELOG.md || true
-                  echo "$COMMITS" | grep -B1 "BREAKING CHANGE:" >> PR_CHANGELOG.md || true
+                  echo "$PR_COMMITS" | grep -E "^feat!:|^fix!:|BREAKING CHANGE:" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
                   echo "### Features" >> PR_CHANGELOG.md
-                  echo "$COMMITS" | grep "^\\* feat:" >> PR_CHANGELOG.md || true
+                  echo "$PR_COMMITS" | grep "^feat:" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
                   echo "### Bug Fixes" >> PR_CHANGELOG.md
-                  echo "$COMMITS" | grep "^\\* fix:" >> PR_CHANGELOG.md || true
+                  echo "$PR_COMMITS" | grep "^fix:" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
                   echo "### Performance Improvements" >> PR_CHANGELOG.md
-                  echo "$COMMITS" | grep "^\\* perf:" >> PR_CHANGELOG.md || true
+                  echo "$PR_COMMITS" | grep "^perf:" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
                   echo "### Other Changes" >> PR_CHANGELOG.md
-                  echo "$COMMITS" | grep -vE "^\\* (feat|fix|perf):" >> PR_CHANGELOG.md || true
+                  echo "$PR_COMMITS" | grep -vE "^(feat!:|fix!:|feat:|fix:|perf:|BREAKING CHANGE:)" >> PR_CHANGELOG.md || true
                   echo "" >> PR_CHANGELOG.md
 
                   # Build and test with new version
