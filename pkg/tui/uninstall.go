@@ -7,7 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type uninstallModel struct {
+// UninstallModel represents the TUI model for uninstallation.
+type UninstallModel struct {
 	cursor    int
 	step      int
 	choice    string
@@ -15,17 +16,18 @@ type uninstallModel struct {
 	quitting  bool
 }
 
-func InitialUninstallModel() uninstallModel {
-	return uninstallModel{
+// InitialUninstallModel creates and returns the initial uninstallation model.
+func InitialUninstallModel() UninstallModel {
+	return UninstallModel{
 		step: 0,
 	}
 }
 
-func (m uninstallModel) Init() tea.Cmd {
+func (m UninstallModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m UninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -62,11 +64,11 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m uninstallModel) View() string {
+func (m UninstallModel) View() string {
 	s := "\n"
 
 	if m.step == 0 {
-		s += "Choose what to uninstall:\n\n"
+		s += ColorBold + ColorCyan + "Choose what to uninstall:" + ColorReset + "\n\n"
 		choices := []string{
 			"Remove Nix Foundry only (keeps Nix installation)",
 			"Remove Nix Foundry and uninstall Nix",
@@ -74,24 +76,39 @@ func (m uninstallModel) View() string {
 		for i, choice := range choices {
 			cursor := " "
 			if m.cursor == i {
-				cursor = ">"
+				cursor = ColorCyan + ">" + ColorReset
 			}
 			s += fmt.Sprintf("%s %s\n", cursor, choice)
 		}
 	} else {
-		s += "Are you sure?\n\n"
+		s += ColorBold + ColorCyan + "Confirmation" + ColorReset + "\n"
+		s += "============\n\n"
+
+		s += ColorBold + ColorCyan + "The following will be removed:" + ColorReset + "\n"
 		if m.choice == "nix-foundry" {
-			s += "This will remove Nix Foundry.\n"
+			s += "• Nix Foundry configuration and files\n"
+			s += "• Shell configuration for Nix Foundry\n"
+			s += ColorGreen + "\nNote: Your Nix installation will be preserved." + ColorReset + "\n"
 		} else {
-			s += "This will remove Nix Foundry and uninstall Nix.\n"
+			s += "• Nix Foundry configuration and files\n"
+			s += "• Shell configuration for Nix Foundry\n"
+			s += "• Nix package manager\n"
+			s += "• All packages installed through Nix\n"
+			s += ColorYellow + "\nWarning: This will remove all packages installed through Nix." + ColorReset + "\n"
 		}
 		s += "\n"
+		s += ColorCyan + "Are you sure you want to proceed?" + ColorReset + "\n\n"
+
 		for i, choice := range []string{"Yes", "No"} {
 			cursor := " "
 			if m.cursor == i {
-				cursor = ">"
+				cursor = ColorCyan + ">" + ColorReset
 			}
-			s += fmt.Sprintf("%s %s\n", cursor, choice)
+			if i == 0 {
+				s += fmt.Sprintf("%s %s%s%s\n", cursor, ColorRed, choice, ColorReset)
+			} else {
+				s += fmt.Sprintf("%s %s\n", cursor, choice)
+			}
 		}
 	}
 
@@ -108,7 +125,7 @@ func RunUninstallTUI() (bool, bool, error) {
 		return false, false, fmt.Errorf("failed to run TUI: %w", err)
 	}
 
-	finalModel := m.(uninstallModel)
+	finalModel := m.(UninstallModel)
 	if finalModel.quitting {
 		return false, false, fmt.Errorf("uninstallation cancelled")
 	}

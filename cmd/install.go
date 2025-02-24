@@ -1,4 +1,9 @@
-// Package cmd provides the command-line interface for Nix Foundry.
+/*
+Package cmd provides the command-line interface for Nix Foundry.
+It implements various commands for managing Nix installations, package management,
+and system configuration. The commands follow the Cobra command pattern for
+consistent CLI behavior.
+*/
 package cmd
 
 import (
@@ -6,9 +11,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
 	"github.com/shawnkhoffman/nix-foundry/pkg/nix"
+	"github.com/shawnkhoffman/nix-foundry/pkg/platform"
 	"github.com/shawnkhoffman/nix-foundry/pkg/schema"
 	"github.com/shawnkhoffman/nix-foundry/pkg/tui"
 	"github.com/spf13/cobra"
@@ -32,11 +41,23 @@ func init() {
 	installCmd.Flags().BoolVar(&multiUser, "multi-user", false, "Install in multi-user mode (requires sudo)")
 }
 
+/*
+getCurrentShell retrieves the current user's shell from the SHELL environment
+variable and returns just the base name of the shell (e.g., "bash", "zsh").
+*/
 func getCurrentShell() string {
 	shell := os.Getenv("SHELL")
 	return filepath.Base(shell)
 }
 
+/*
+installShell installs the specified shell using nix-env if it's different from
+the current shell. It also configures the system to use the new shell by:
+1. Installing the shell package via nix-env
+2. Adding the shell to /etc/shells if possible
+3. Attempting to change the user's default shell
+If any step fails, appropriate warnings are displayed but the process continues.
+*/
 func installShell(shell string) error {
 	currentShell := getCurrentShell()
 	if shell == currentShell {
@@ -45,57 +66,63 @@ func installShell(shell string) error {
 
 	fmt.Printf("Installing %s shell...\n", shell)
 
-	// Install shell using nix-env
-	cmd := exec.Command("nix-env", "-iA", "nixpkgs."+shell)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install %s: %w", shell, err)
+	nixEnvCmd := fmt.Sprintf(". %s && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 /nix/var/nix/profiles/default/bin/nix-env -iA nixpkgs.%s -Q",
+		"/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
+		shell)
+	execCmd := exec.Command("bash", "-c", nixEnvCmd)
+	if output, err := execCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to install %s: %s: %w", shell, output, err)
 	}
 
-	// Add shell to /etc/shells if it's not already there
-	shellPath := fmt.Sprintf("/run/current-system/sw/bin/%s", shell)
-	cmd = exec.Command("sudo", "sh", "-c", fmt.Sprintf("echo %s >> /etc/shells", shellPath))
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to add %s to /etc/shells: %w", shell, err)
-	}
+	shellPath := filepath.Join("/nix/var/nix/profiles/default/bin", shell)
 
-	// Change user's shell
-	cmd = exec.Command("chsh", "-s", shellPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to change shell to %s: %w", shell, err)
-	}
+	execCmd = exec.Command("sudo", "sh", "-c", fmt.Sprintf("command -v %s >> /etc/shells 2>/dev/null || true", shellPath))
+	_ = execCmd.Run()
 
-	fmt.Printf("Successfully changed shell to %s. Please log out and back in for changes to take effect.\n", shell)
+	if _, err := exec.LookPath("chsh"); err == nil {
+		execCmd = exec.Command("chsh", "-s", shellPath)
+		if err := execCmd.Run(); err != nil {
+			fmt.Printf("Warning: Failed to change shell to %s: %v\nYou may need to change your shell manually.\n", shell, err)
+		} else {
+			fmt.Printf("Successfully changed shell to %s. Please log out and back in for changes to take effect.\n", shell)
+		}
+	} else {
+		fmt.Printf("Note: Shell change command not available. You may need to change your shell to %s manually.\n", shellPath)
+	}
 	return nil
 }
 
-func runInstall(cmd *cobra.Command, args []string) error {
-	// Check if running as root for multi-user installation
-	if multiUser && os.Geteuid() != 0 {
-		return fmt.Errorf("multi-user installation requires root privileges. Please run with sudo")
+/*
+determineMultiUserMode determines if multi-user mode is required based on:
+1. Platform requirements (e.g., macOS always needs multi-user mode)
+2. Selected packages that require multi-user mode (e.g., docker)
+*/
+func determineMultiUserMode(packages []string) bool {
+	if platform.GetNixSystem() == "aarch64-darwin" || platform.GetNixSystem() == "x86_64-darwin" {
+		return true
 	}
 
-	// Run installation TUI
-	manager, shell, packages, confirmed, err := tui.RunInstallTUI()
-	if err != nil {
-		return err
+	for _, pkg := range packages {
+		switch pkg {
+		case "docker":
+			return true
+		}
 	}
+	return false
+}
 
-	if !confirmed {
-		return fmt.Errorf("installation cancelled")
-	}
-
-	// Create configuration
+/*
+createInitialConfig creates and saves the initial configuration with the provided settings.
+*/
+func createInitialConfig(manager, shell string, packages []string) error {
 	config := schema.NewDefaultConfig()
 	config.Settings.Shell = shell
 	config.Nix.Manager = manager
 	config.Nix.Packages.Optional = packages
 
-	// Save configuration
-	configPath, err := schema.GetConfigPath()
-	if err != nil {
-		return fmt.Errorf("failed to get config path: %w", err)
+	configPath, pathErr := schema.GetConfigPath()
+	if pathErr != nil {
+		return fmt.Errorf("failed to get config path: %w", pathErr)
 	}
 
 	configDir := filepath.Dir(configPath)
@@ -103,25 +130,177 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create config directory: %w", mkdirErr)
 	}
 
-	content, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+	uid := os.Getuid()
+	gid := os.Getgid()
+
+	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
+		if parsedUID, parseErr := strconv.Atoi(sudoUID); parseErr == nil {
+			uid = parsedUID
+		}
+	}
+	if sudoGID := os.Getenv("SUDO_GID"); sudoGID != "" {
+		if parsedGID, parseErr := strconv.Atoi(sudoGID); parseErr == nil {
+			gid = parsedGID
+		}
 	}
 
-	if err := os.WriteFile(configPath, content, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+	if chownErr := os.Chown(configDir, uid, gid); chownErr != nil {
+		return fmt.Errorf("failed to set config directory ownership: %w", chownErr)
 	}
 
-	// Install Nix
+	content, marshalErr := yaml.Marshal(config)
+	if marshalErr != nil {
+		return fmt.Errorf("failed to marshal config: %w", marshalErr)
+	}
+
+	if writeErr := os.WriteFile(configPath, content, 0644); writeErr != nil {
+		return fmt.Errorf("failed to write config: %w", writeErr)
+	}
+
+	if chownErr := os.Chown(configPath, uid, gid); chownErr != nil {
+		return fmt.Errorf("failed to set config file ownership: %w", chownErr)
+	}
+
+	return nil
+}
+
+/*
+initializeNixChannels initializes the Nix channels and waits for the daemon to be ready.
+*/
+func initializeNixChannels() error {
+	fmt.Println("Initializing Nix channels...")
+	cmd := exec.Command("bash", "-c", ". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-channel --add https://nixos.org/channels/nixpkgs-unstable && nix-channel --update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("Warning: Failed to initialize Nix channels: %v\n", err)
+	}
+
+	fmt.Println("Waiting for Nix daemon to be ready...")
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			fmt.Printf("Retrying in 2 seconds (attempt %d/%d)...\n", i+1, maxRetries)
+			time.Sleep(2 * time.Second)
+		}
+
+		checkCmd := exec.Command("bash", "-c", "/nix/var/nix/profiles/default/bin/nix-env --version")
+		if checkErr := checkCmd.Run(); checkErr == nil {
+			return nil
+		}
+
+		if i == maxRetries-1 {
+			return fmt.Errorf("nix daemon not ready after %d attempts", maxRetries)
+		}
+	}
+
+	return nil
+}
+
+/*
+configureNixSettings creates and configures Nix settings for the current user.
+*/
+func configureNixSettings(uid, gid int) error {
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr != nil {
+		return fmt.Errorf("failed to get home directory: %w", homeDirErr)
+	}
+
+	nixConfigDir := filepath.Join(homeDir, ".config", "nixpkgs")
+	if mkdirErr := os.MkdirAll(nixConfigDir, 0755); mkdirErr != nil {
+		return fmt.Errorf("failed to create nixpkgs config directory: %w", mkdirErr)
+	}
+
+	if chownErr := os.Chown(nixConfigDir, uid, gid); chownErr != nil {
+		return fmt.Errorf("failed to set nixpkgs config directory ownership: %w", chownErr)
+	}
+
+	nixConfig := fmt.Sprintf(`{
+  allowUnfree = true;
+  allowUnsupportedSystem = true;
+  crossSystem = null;
+  system = "%s";
+}
+`, platform.GetNixSystem())
+	nixConfigPath := filepath.Join(nixConfigDir, "config.nix")
+	if writeErr := os.WriteFile(nixConfigPath, []byte(nixConfig), 0644); writeErr != nil {
+		return fmt.Errorf("failed to write nixpkgs config: %w", writeErr)
+	}
+
+	if chownErr := os.Chown(nixConfigPath, uid, gid); chownErr != nil {
+		return fmt.Errorf("failed to set nixpkgs config file ownership: %w", chownErr)
+	}
+
+	return nil
+}
+
+/*
+installSelectedPackages installs the selected packages using nix-env.
+*/
+func installSelectedPackages(packages []string) error {
+	fmt.Println("Installing selected packages...")
+	for _, pkg := range packages {
+		fmt.Printf("Installing %s...\n", pkg)
+		nixEnvCmd := fmt.Sprintf(". %s && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 /nix/var/nix/profiles/default/bin/nix-env -iA nixpkgs.%s -Q",
+			"/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
+			pkg)
+		execCmd := exec.Command("bash", "-c", nixEnvCmd)
+		if output, execErr := execCmd.CombinedOutput(); execErr != nil {
+			return fmt.Errorf("failed to install package %s: %s: %w", pkg, output, execErr)
+		}
+		fmt.Printf("✓ Installed %s\n", pkg)
+	}
+	return nil
+}
+
+/*
+runInstall handles the main installation process for Nix Foundry. It:
+1. Verifies proper permissions for multi-user installation
+2. Runs the installation TUI to gather user preferences
+3. Determines if multi-user mode is required based on platform and package selection
+4. Creates and saves initial configuration
+5. Installs Nix package manager
+6. Sets up selected shell and packages
+7. Configures system paths and environment
+
+Returns an error if any critical step fails.
+*/
+func runInstall(command *cobra.Command, args []string) error {
+	if multiUser && os.Geteuid() != 0 {
+		return fmt.Errorf("multi-user installation requires root privileges. Please run with sudo")
+	}
+
+	manager, shell, packages, confirmed, initErr := tui.RunInstallTUI()
+	if initErr != nil {
+		return initErr
+	}
+
+	if !confirmed {
+		return fmt.Errorf("installation cancelled")
+	}
+
+	multiUser = determineMultiUserMode(packages)
+	if multiUser && os.Geteuid() != 0 {
+		var reason string
+		if platform.GetNixSystem() == "aarch64-darwin" || platform.GetNixSystem() == "x86_64-darwin" {
+			reason = "macOS requires multi-user mode"
+		} else {
+			reason = "selected packages (docker) require multi-user mode"
+		}
+		return fmt.Errorf("multi-user installation is required (%s). Please run with sudo", reason)
+	}
+
+	if configErr := createInitialConfig(manager, shell, packages); configErr != nil {
+		return configErr
+	}
+
 	fs := filesystem.NewOSFileSystem()
 	installer := nix.NewInstaller(fs)
 
-	// Check if Nix is already installed
 	if installer.IsInstalled() {
-		// If installed, check if it's the correct mode
-		currentMultiUser, err := installer.IsMultiUser()
-		if err != nil {
-			return fmt.Errorf("failed to check installation mode: %w", err)
+		currentMultiUser, modeErr := installer.IsMultiUser()
+		if modeErr != nil {
+			return fmt.Errorf("failed to check installation mode: %w", modeErr)
 		}
 
 		if currentMultiUser == multiUser {
@@ -129,31 +308,55 @@ func runInstall(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		// If mode mismatch, ask to uninstall first
 		fmt.Printf("Nix is already installed in %s mode. Please uninstall first to change modes.\n",
 			map[bool]string{true: "multi-user", false: "single-user"}[currentMultiUser])
 		return nil
 	}
 
-	if err := installer.Install(multiUser); err != nil {
-		return fmt.Errorf("installation failed: %w", err)
+	if installErr := installer.Install(multiUser); installErr != nil {
+		return fmt.Errorf("installation failed: %w", installErr)
 	}
 
-	// Install selected shell if different from current
-	if err := installShell(shell); err != nil {
-		fmt.Printf("Warning: Failed to install shell: %v\n", err)
+	if shellErr := installShell(shell); shellErr != nil {
+		fmt.Printf("Warning: Failed to install shell: %v\n", shellErr)
 	}
 
-	// Add nix-foundry to PATH
-	if err := addToPath(shell); err != nil {
-		fmt.Printf("Warning: Failed to add nix-foundry to PATH: %v\n", err)
+	if pathErr := addToPath(shell); pathErr != nil {
+		fmt.Printf("Warning: Failed to add nix-foundry to PATH: %v\n", pathErr)
 	}
 
 	fmt.Printf("✨ Nix installed successfully in %s mode\n",
 		map[bool]string{true: "multi-user", false: "single-user"}[multiUser])
-	return nil
+	fmt.Println("\nTo complete the setup and install your selected packages, run:")
+	fmt.Println("  nix-foundry config apply")
+
+	if channelErr := initializeNixChannels(); channelErr != nil {
+		return channelErr
+	}
+
+	uid := os.Getuid()
+	gid := os.Getgid()
+	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
+		if parsedUID, parseErr := strconv.Atoi(sudoUID); parseErr == nil {
+			uid = parsedUID
+		}
+	}
+	if sudoGID := os.Getenv("SUDO_GID"); sudoGID != "" {
+		if parsedGID, parseErr := strconv.Atoi(sudoGID); parseErr == nil {
+			gid = parsedGID
+		}
+	}
+
+	if configErr := configureNixSettings(uid, gid); configErr != nil {
+		return configErr
+	}
+
+	return installSelectedPackages(packages)
 }
 
+/*
+addToPath adds nix-foundry to the user's PATH by modifying their shell configuration file.
+*/
 func addToPath(shell string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -172,30 +375,67 @@ func addToPath(shell string) error {
 		return fmt.Errorf("unsupported shell: %s", shell)
 	}
 
-	// Create config directory for fish if needed
 	if shell == "fish" {
-		if mkdirErr := os.MkdirAll(filepath.Dir(rcFile), 0755); mkdirErr != nil {
+		if mkdirErr := os.MkdirAll(filepath.Dir(rcFile), 0775); mkdirErr != nil {
 			return fmt.Errorf("failed to create fish config directory: %w", mkdirErr)
 		}
 	}
 
-	// Add PATH update to shell rc file
 	var content string
 	switch shell {
 	case "fish":
-		content = "\n# Add nix-foundry to PATH\nset -x PATH $PATH $HOME/.local/bin\n"
+		content = `
+if test -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish'
+    source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish'
+else if test -e "$HOME/.nix-profile/etc/profile.d/nix.fish"
+    source "$HOME/.nix-profile/etc/profile.d/nix.fish"
+end
+
+if not contains $HOME/.local/bin $PATH
+    set -x PATH $PATH $HOME/.local/bin
+end
+`
+	case "zsh":
+		content = `
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+    . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+fi
+
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$PATH:$HOME/.local/bin"
+fi
+`
 	default:
-		content = "\n# Add nix-foundry to PATH\nexport PATH=\"$PATH:$HOME/.local/bin\"\n"
+		content = `
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+    . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+fi
+
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$PATH:$HOME/.local/bin"
+fi
+`
 	}
 
-	f, err := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open rc file: %w", err)
+	existingContent, readErr := os.ReadFile(rcFile)
+	if readErr == nil && len(existingContent) > 0 {
+		if strings.Contains(string(existingContent), "nix-daemon") {
+			return nil
+		}
+	}
+
+	f, openErr := os.OpenFile(rcFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+	if openErr != nil {
+		return fmt.Errorf("failed to open rc file: %w", openErr)
 	}
 	defer f.Close()
 
-	if _, err := f.WriteString(content); err != nil {
-		return fmt.Errorf("failed to update rc file: %w", err)
+	if _, writeErr := f.WriteString(content); writeErr != nil {
+		return fmt.Errorf("failed to update rc file: %w", writeErr)
 	}
 
 	return nil

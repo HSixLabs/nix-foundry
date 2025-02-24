@@ -17,11 +17,10 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 
 	configCmd.AddCommand(
-		config.NewApplyCmd(),
-		config.NewSetCmd(),
-		config.NewInitCmd(),
-		config.NewUninstallCmd(),
-		config.NewScriptCmd(),
-		config.NewSetupCmd(),
+		config.ApplyCmd,
+		config.InitCmd,
+		config.ListCmd,
+		config.ShowCmd,
+		config.SetCmd,
 	)
 }

@@ -1,4 +1,8 @@
-// Package nix provides Nix package manager installation functionality.
+/*
+Package nix provides Nix package manager installation functionality.
+It handles installation, uninstallation, and verification of Nix package manager
+installations in both single-user and multi-user modes.
+*/
 package nix
 
 import (
@@ -12,29 +16,41 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
 )
 
-// Installer handles Nix package manager installation.
+/*
+Installer handles Nix package manager installation operations.
+It provides functionality for installing, uninstalling, and verifying
+Nix installations using a provided filesystem abstraction.
+*/
 type Installer struct {
 	fs filesystem.FileSystem
 }
 
-// NewInstaller creates a new Nix installer.
+/*
+NewInstaller creates a new Nix installer with the provided filesystem implementation.
+*/
 func NewInstaller(fs filesystem.FileSystem) *Installer {
 	return &Installer{fs: fs}
 }
 
-// IsInstalled checks if Nix is installed.
+/*
+IsInstalled checks if Nix is installed by verifying:
+1. The presence of the nix binary in PATH
+2. The existence of the Nix store directory
+3. The existence of a Nix profile
+Returns true if any of these checks succeed.
+*/
 func (i *Installer) IsInstalled() bool {
 	fmt.Println("Checking Nix installation status...")
 
-	nixPath, err := exec.LookPath("nix")
-	if err == nil {
+	nixPath, lookPathErr := exec.LookPath("nix")
+	if lookPathErr == nil {
 		fmt.Printf("Found nix binary at: %s\n", nixPath)
 		cmd := exec.Command("nix", "--version")
-		if out, err := cmd.CombinedOutput(); err == nil {
+		if out, versionErr := cmd.CombinedOutput(); versionErr == nil {
 			fmt.Printf("Nix version: %s\n", strings.TrimSpace(string(out)))
 			return true
 		}
-		fmt.Printf("Nix binary found but not working: %v\n", err)
+		fmt.Printf("Nix binary found but not working: %v\n", lookPathErr)
 	}
 
 	if i.fs.Exists("/nix/store") {
@@ -42,8 +58,8 @@ func (i *Installer) IsInstalled() bool {
 		return true
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err == nil {
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr == nil {
 		profile := filepath.Join(homeDir, ".nix-profile")
 		if i.fs.Exists(profile) {
 			fmt.Println("Found Nix profile")
@@ -55,18 +71,18 @@ func (i *Installer) IsInstalled() bool {
 	return false
 }
 
-// IsMultiUser checks if Nix is installed in multi-user mode.
+/*
+IsMultiUser checks if Nix is installed in multi-user mode by checking for:
+1. The presence of systemd service on Linux
+2. The presence of launchd service on macOS
+3. The existence of the Nix daemon directory
+Returns true if any of these checks succeed.
+*/
 func (i *Installer) IsMultiUser() (bool, error) {
 	fmt.Println("Checking Nix installation mode...")
 
-	if i.fs.Exists("/nix/var/nix/daemon") {
-		fmt.Println("Found Nix daemon service")
-		return true, nil
-	}
-
-	cmd := exec.Command("systemctl", "is-active", "nix-daemon.service")
-	if err := cmd.Run(); err == nil {
-		fmt.Println("Found active Nix daemon systemd service")
+	if i.fs.Exists("/etc/systemd/system/nix-daemon.service") {
+		fmt.Println("Found Nix daemon systemd service")
 		return true, nil
 	}
 
@@ -75,11 +91,19 @@ func (i *Installer) IsMultiUser() (bool, error) {
 		return true, nil
 	}
 
+	if i.fs.Exists("/nix/var/nix/daemon") {
+		fmt.Println("Found Nix daemon service")
+		return true, nil
+	}
+
 	fmt.Println("No multi-user installation detected")
 	return false, nil
 }
 
-// cleanupBackupFiles removes old backup files that might interfere with installation.
+/*
+cleanupBackupFiles removes old backup files that might interfere with installation.
+It removes backup files created by previous Nix installations.
+*/
 func (i *Installer) cleanupBackupFiles() error {
 	backupFiles := []string{
 		"/etc/bashrc.backup-before-nix",
@@ -87,46 +111,61 @@ func (i *Installer) cleanupBackupFiles() error {
 		"/etc/bash.bashrc.backup-before-nix",
 	}
 
+	var errs []error
 	for _, file := range backupFiles {
 		if i.fs.Exists(file) {
 			fmt.Printf("Removing old backup file: %s\n", file)
-			cmd := exec.Command("sudo", "rm", "-f", file)
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("Warning: Failed to remove backup file %s: %v\n", file, err)
+			removeCmd := exec.Command("sudo", "rm", "-fv", file)
+			removeCmd.Stdout = os.Stdout
+			removeCmd.Stderr = os.Stderr
+			if removeErr := removeCmd.Run(); removeErr != nil {
+				errs = append(errs, fmt.Errorf("failed to remove backup file %s: %w", file, removeErr))
 			}
 		}
 	}
 
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to cleanup backup files: %v", errs)
+	}
 	return nil
 }
 
-// Install installs Nix in either single-user or multi-user mode.
+/*
+Install installs Nix in either single-user or multi-user mode.
+It performs the following steps:
+1. Cleans up any old backup files
+2. Downloads the Nix installation script
+3. Executes the installation script with appropriate flags
+4. Verifies the installation was successful
+*/
 func (i *Installer) Install(multiUser bool) error {
 	fmt.Printf("Installing Nix in %s mode...\n",
 		map[bool]string{true: "multi-user", false: "single-user"}[multiUser])
 
-	if err := i.cleanupBackupFiles(); err != nil {
-		return err
+	if cleanupErr := i.cleanupBackupFiles(); cleanupErr != nil {
+		return cleanupErr
 	}
 
-	tmpDir, err := os.MkdirTemp("", "nix-install-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+	tmpDir, tmpDirErr := os.MkdirTemp("", "nix-install-*")
+	if tmpDirErr != nil {
+		return fmt.Errorf("failed to create temp directory: %w", tmpDirErr)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	scriptPath := filepath.Join(tmpDir, "install.sh")
-	fmt.Println("Downloading Nix installation script...")
-	cmd := exec.Command("curl", "-L", "https://nixos.org/nix/install", "-o", scriptPath)
+	fmt.Println("Downloading Nix...")
+	cmd := exec.Command("curl", "-L", "--progress-bar", "https://nixos.org/nix/install", "-o", scriptPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to download installation script: %w", err)
+		return fmt.Errorf("failed to download Nix: %w", err)
 	}
 
-	if err := os.Chmod(scriptPath, 0755); err != nil {
-		return fmt.Errorf("failed to make script executable: %w", err)
+	if chmodErr := os.Chmod(scriptPath, 0755); chmodErr != nil {
+		return fmt.Errorf("failed to make script executable: %w", chmodErr)
 	}
 
-	fmt.Println("Running Nix installation script...")
+	fmt.Println("Installing Nix...")
 	var installCmd *exec.Cmd
 	if multiUser {
 		installCmd = exec.Command("sh", scriptPath, "--daemon")
@@ -136,9 +175,8 @@ func (i *Installer) Install(multiUser bool) error {
 
 	installCmd.Stdout = os.Stdout
 	installCmd.Stderr = os.Stderr
-
-	if err := installCmd.Run(); err != nil {
-		return fmt.Errorf("installation script failed: %w", err)
+	if installErr := installCmd.Run(); installErr != nil {
+		return fmt.Errorf("failed to install Nix: %w", installErr)
 	}
 
 	fmt.Println("Waiting for installation to complete...")
@@ -152,7 +190,19 @@ func (i *Installer) Install(multiUser bool) error {
 	return nil
 }
 
-// Uninstall removes Nix installation.
+/*
+Uninstall removes Nix installation from the system.
+It performs the following steps:
+1. Verifies Nix is installed
+2. Checks for running Nix processes (unless force is true)
+3. Uninstalls all packages
+4. Stops Nix daemon services if in multi-user mode
+5. Removes Nix files and directories
+6. Cleans up shell configurations
+7. Verifies uninstallation was successful
+
+The force parameter allows bypassing certain checks and errors.
+*/
 func (i *Installer) Uninstall(force bool) error {
 	fmt.Println("Starting Nix uninstallation...")
 
@@ -163,19 +213,86 @@ func (i *Installer) Uninstall(force bool) error {
 
 	if !force {
 		fmt.Println("Checking for running Nix processes...")
-		cmd := exec.Command("pgrep", "-f", "nix")
-		if err := cmd.Run(); err == nil {
+		processCmd := exec.Command("pgrep", "-f", "nix")
+		if processErr := processCmd.Run(); processErr == nil {
 			return fmt.Errorf("nix processes are still running. Please stop them first or use --force")
 		}
 	}
 
-	if multiUser, _ := i.IsMultiUser(); multiUser {
-		fmt.Println("Stopping Nix daemon service...")
-		stopCmd := exec.Command("sudo", "systemctl", "stop", "nix-daemon.service")
-		stopCmd.Run()
+	fmt.Println("Uninstalling all Nix packages...")
 
-		stopCmd = exec.Command("sudo", "launchctl", "unload", "/Library/LaunchDaemons/org.nixos.nix-daemon.plist")
-		stopCmd.Run()
+	fmt.Println("Checking multi-user profile...")
+	listCmd := exec.Command("bash", "-c", ". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-env -q")
+	listCmd.Stdout = os.Stdout
+	listCmd.Stderr = os.Stderr
+	output, listErr := listCmd.Output()
+	if listErr == nil {
+		packages := strings.Split(strings.TrimSpace(string(output)), "\n")
+		for _, pkg := range packages {
+			if pkg == "" {
+				continue
+			}
+			fmt.Printf("Uninstalling package: %s\n", pkg)
+			uninstallCmd := exec.Command("bash", "-c", fmt.Sprintf(". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-env -e %s", pkg))
+			uninstallCmd.Stdout = os.Stdout
+			uninstallCmd.Stderr = os.Stderr
+			if uninstallErr := uninstallCmd.Run(); uninstallErr != nil {
+				fmt.Printf("Warning: Failed to uninstall package %s: %v\n", pkg, uninstallErr)
+			}
+		}
+	} else {
+		fmt.Printf("Note: No packages found in multi-user profile or profile not accessible\n")
+	}
+
+	homeDir, homeDirErr := os.UserHomeDir()
+	if homeDirErr == nil {
+		fmt.Println("Checking single-user profile...")
+		listCmd = exec.Command("bash", "-c", fmt.Sprintf(". %s/.nix-profile/etc/profile.d/nix.sh && nix-env -q", homeDir))
+		listCmd.Stdout = os.Stdout
+		listCmd.Stderr = os.Stderr
+		output, listErr = listCmd.Output()
+		if listErr == nil {
+			packages := strings.Split(strings.TrimSpace(string(output)), "\n")
+			for _, pkg := range packages {
+				if pkg == "" {
+					continue
+				}
+				fmt.Printf("Uninstalling package: %s\n", pkg)
+				uninstallCmd := exec.Command("bash", "-c", fmt.Sprintf(". %s/.nix-profile/etc/profile.d/nix.sh && nix-env -e %s", homeDir, pkg))
+				uninstallCmd.Stdout = os.Stdout
+				uninstallCmd.Stderr = os.Stderr
+				if uninstallErr := uninstallCmd.Run(); uninstallErr != nil {
+					fmt.Printf("Warning: Failed to uninstall package %s: %v\n", pkg, uninstallErr)
+				}
+			}
+		} else {
+			fmt.Printf("Note: No packages found in single-user profile or profile not accessible\n")
+		}
+	}
+
+	multiUser, multiUserErr := i.IsMultiUser()
+	if multiUserErr == nil && multiUser {
+		fmt.Println("Stopping Nix daemon service...")
+
+		if i.fs.Exists("/etc/systemd/system/nix-daemon.service") {
+			fmt.Println("Stopping systemd service...")
+			stopCmd := exec.Command("sudo", "systemctl", "stop", "nix-daemon.service")
+			stopCmd.Stdout = os.Stdout
+			stopCmd.Stderr = os.Stderr
+			if stopErr := stopCmd.Run(); stopErr != nil {
+				fmt.Printf("Warning: Failed to stop systemd service: %v\n", stopErr)
+			}
+		}
+
+		if i.fs.Exists("/Library/LaunchDaemons/org.nixos.nix-daemon.plist") {
+			fmt.Println("Unloading launchd service...")
+			stopCmd := exec.Command("sudo", "launchctl", "unload", "/Library/LaunchDaemons/org.nixos.nix-daemon.plist")
+			stopCmd.Stdout = os.Stdout
+			stopCmd.Stderr = os.Stderr
+			if stopErr := stopCmd.Run(); stopErr != nil {
+				fmt.Printf("Warning: Failed to unload launchd service: %v\n", stopErr)
+			}
+		}
 	}
 
 	paths := []string{
@@ -188,11 +305,11 @@ func (i *Installer) Uninstall(force bool) error {
 		"/Library/LaunchDaemons/org.nixos.darwin-store.plist",
 	}
 
-	if homeDir, err := os.UserHomeDir(); err == nil {
+	if userHomeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
 		paths = append(paths,
-			filepath.Join(homeDir, ".nix-profile"),
-			filepath.Join(homeDir, ".nix-defexpr"),
-			filepath.Join(homeDir, ".nix-channels"),
+			filepath.Join(userHomeDir, ".nix-profile"),
+			filepath.Join(userHomeDir, ".nix-defexpr"),
+			filepath.Join(userHomeDir, ".nix-channels"),
 		)
 	}
 
@@ -204,8 +321,8 @@ func (i *Installer) Uninstall(force bool) error {
 
 	for _, file := range shellFiles {
 		if i.fs.Exists(file) {
-			content, err := os.ReadFile(file)
-			if err != nil {
+			content, readErr := os.ReadFile(file)
+			if readErr != nil {
 				continue
 			}
 
@@ -219,11 +336,15 @@ func (i *Installer) Uninstall(force bool) error {
 
 			newContent := strings.Join(newLines, "\n")
 			if force {
-				cmd := exec.Command("sudo", "tee", file)
-				cmd.Stdin = strings.NewReader(newContent)
-				cmd.Run()
+				writeCmd := exec.Command("sudo", "tee", file)
+				writeCmd.Stdin = strings.NewReader(newContent)
+				if writeErr := writeCmd.Run(); writeErr != nil {
+					fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
+				}
 			} else {
-				os.WriteFile(file, []byte(newContent), 0644)
+				if writeErr := os.WriteFile(file, []byte(newContent), 0644); writeErr != nil {
+					fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
+				}
 			}
 		}
 	}
@@ -236,23 +357,41 @@ func (i *Installer) Uninstall(force bool) error {
 		}
 
 		fmt.Printf("Removing: %s\n", path)
-		if force {
-			cmd := exec.Command("sudo", "rm", "-rf", path)
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("Warning: Failed to force remove %s: %v\n", path, err)
-			}
-		} else {
-			if err := os.RemoveAll(path); err != nil {
-				if strings.Contains(err.Error(), "resource busy") {
-					return fmt.Errorf("failed to remove %s: resource busy. Try using --force", path)
+		if path == "/nix" {
+			if i.fs.Exists("/usr/sbin/diskutil") {
+				fmt.Println("Attempting macOS unmount...")
+				unmountCmd := exec.Command("sudo", "diskutil", "unmount", "force", "/nix")
+				unmountCmd.Stdout = os.Stdout
+				unmountCmd.Stderr = os.Stderr
+				if unmountErr := unmountCmd.Run(); unmountErr != nil {
+					fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
 				}
-				return fmt.Errorf("failed to remove %s: %w", path, err)
 			}
+
+			if i.fs.Exists("/bin/umount") {
+				fmt.Println("Attempting Linux unmount...")
+				unmountCmd := exec.Command("sudo", "umount", "-f", "/nix")
+				unmountCmd.Stdout = os.Stdout
+				unmountCmd.Stderr = os.Stderr
+				if unmountErr := unmountCmd.Run(); unmountErr != nil {
+					fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
+				}
+			}
+		}
+
+		removeCmd := exec.Command("sudo", "rm", "-rfv", path)
+		removeCmd.Stdout = os.Stdout
+		removeCmd.Stderr = os.Stderr
+		if removeErr := removeCmd.Run(); removeErr != nil {
+			if !force {
+				return fmt.Errorf("failed to remove %s: %w", path, removeErr)
+			}
+			fmt.Printf("Warning: Failed to remove %s: %v\n", path, removeErr)
 		}
 	}
 
-	if err := i.cleanupBackupFiles(); err != nil {
-		fmt.Printf("Warning: Failed to clean up backup files: %v\n", err)
+	if cleanupErr := i.cleanupBackupFiles(); cleanupErr != nil {
+		fmt.Printf("Warning: Failed to clean up backup files: %v\n", cleanupErr)
 	}
 
 	fmt.Println("Verifying uninstallation...")

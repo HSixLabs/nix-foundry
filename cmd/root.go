@@ -10,7 +10,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "nix-foundry",
 	Short: "A tool for managing Nix environments across platforms",
-	Long: `nix-foundry is a cross-platform tool for managing Nix environments.
+	Long: `Nix Foundry is a cross-platform tool for managing Nix environments.
 It provides a unified interface for installing, configuring, and managing
 Nix packages and environments across macOS, Linux, and Windows Subsystem
 for Linux (WSL).`,

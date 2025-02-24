@@ -20,7 +20,9 @@ repos:
           "--fix",
           "--timeout=5m",
           "--config=.golangci.yml",
-          "./cmd/..."
+          "./cmd/...",
+          "./pkg/...",
+          "./service/..."
         ]
         pass_filenames: false
 
@@ -31,6 +33,21 @@ repos:
         entry: go mod download
         language: system
         pass_filenames: false
+
+      - id: go-test
+        name: Run Go tests
+        entry: go test ./... -v
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: generate-docs
+        name: Generate documentation
+        entry: go run scripts/gendocs.go
+        language: system
+        files: ^(pkg/|cmd/|service/|docs/)
+        pass_filenames: false
+        stages: [pre-commit]
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.20.0

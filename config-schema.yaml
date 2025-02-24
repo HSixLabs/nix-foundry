@@ -1,10 +1,13 @@
 version: string # v1
 kind: string # NixConfig
+type: string # user|team|project
 metadata:
   name: string
   description: string
   created: timestamp
   updated: timestamp
+  priority?: number # Higher priority configs override lower priority ones
+base?: string # Name of the config to extend from
 settings:
   shell: string # bash|zsh|fish
   logLevel: string # info|debug|warn|error
@@ -13,7 +16,7 @@ settings:
 nix:
   manager: string # nix-env
   packages:
-    core: [string] # Required, non-empty
+    core?: [string] # Required for team/project configs, not for user configs
     optional?: [string] # Optional packages
   scripts?:
     - name: string
