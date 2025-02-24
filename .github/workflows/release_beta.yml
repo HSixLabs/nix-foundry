@@ -1,7 +1,17 @@
 name: Release Beta
 on:
-    pull_request:
-        types: [opened, edited, reopened, synchronize]
+  workflow_call:
+    inputs:
+      pull_request_number:
+        required: true
+        type: number
+    outputs:
+      should_publish:
+        description: "Whether the changes warrant a release"
+        value: ${{ jobs.check_flag.outputs.should_publish }}
+      release_type:
+        description: "Type of release (major, minor, patch)"
+        value: ${{ jobs.check_flag.outputs.release_type }}
 
 jobs:
     check_release:
@@ -81,15 +91,20 @@ jobs:
 
                   echo "Release type: ${RELEASE_TYPE}"
 
+                  # Get latest release from main
+                  LATEST_MAIN_VERSION=$(git describe --tags --match "v*" --abbrev=0 origin/main 2>/dev/null || echo "v0.0.0")
+                  LATEST_MAIN_VERSION=${LATEST_MAIN_VERSION#v}
+
+                  # Calculate new base version
                   case "$RELEASE_TYPE" in
                     "major")
-                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'major')")
+                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'major')")
                       ;;
                     "minor")
-                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'minor')")
+                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'minor')")
                       ;;
                     "patch")
-                      NEW_VERSION=$(node -p "require('semver').inc('${CURRENT_VERSION}', 'patch')")
+                      BASE_VERSION=$(node -p "require('semver').inc('${LATEST_MAIN_VERSION}', 'patch')")
                       ;;
                     *)
                       echo "Error: Invalid release type"
@@ -97,7 +112,15 @@ jobs:
                       ;;
                   esac
 
-                  BETA_VERSION="${NEW_VERSION}-beta-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+                  # Get latest beta for this base version
+                  LATEST_BETA=$(git tag -l "v${BASE_VERSION}-beta*" --sort=-v:refname | head -n1)
+                  if [[ -z "$LATEST_BETA" ]]; then
+                    BETA_VERSION="${BASE_VERSION}-beta.1"
+                  else
+                    CURRENT_BETA_NUMBER=$(echo "$LATEST_BETA" | sed -E 's/.*beta\.([0-9]+)/\1/')
+                    NEXT_BETA_NUMBER=$((CURRENT_BETA_NUMBER + 1))
+                    BETA_VERSION="${BASE_VERSION}-beta.${NEXT_BETA_NUMBER}"
+                  fi
                   echo "Beta version: ${BETA_VERSION}"
 
                   # Update package.json
