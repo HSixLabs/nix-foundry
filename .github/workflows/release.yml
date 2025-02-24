@@ -28,20 +28,24 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git checkout -b beta
-          fi
+
+      - name: Setup Branch
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main:main
+          git checkout -b beta
+          git reset --hard ${{ github.sha }}
 
       - name: Run Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           extra_plugins: |
             @semantic-release/git
             @semantic-release/changelog
             @semantic-release/exec
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Post Beta Comment
         if: github.event_name == 'pull_request' && steps.semantic.outputs.new_release_published == 'true'
