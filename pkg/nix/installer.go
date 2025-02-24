@@ -191,85 +191,63 @@ func (i *Installer) Install(multiUser bool) error {
 }
 
 /*
-Uninstall removes Nix installation from the system.
-It performs the following steps:
-1. Verifies Nix is installed
-2. Checks for running Nix processes (unless force is true)
-3. Uninstalls all packages
-4. Stops Nix daemon services if in multi-user mode
-5. Removes Nix files and directories
-6. Cleans up shell configurations
-7. Verifies uninstallation was successful
-
-The force parameter allows bypassing certain checks and errors.
+uninstallPackages uninstalls all packages from both multi-user and single-user profiles.
 */
-func (i *Installer) Uninstall(force bool) error {
-	fmt.Println("Starting Nix uninstallation...")
-
-	if !i.IsInstalled() {
-		fmt.Println("No Nix installation found")
-		return nil
-	}
-
-	if !force {
-		fmt.Println("Checking for running Nix processes...")
-		processCmd := exec.Command("pgrep", "-f", "nix")
-		if processErr := processCmd.Run(); processErr == nil {
-			return fmt.Errorf("nix processes are still running. Please stop them first or use --force")
-		}
-	}
-
+func (i *Installer) uninstallPackages() {
 	fmt.Println("Uninstalling all Nix packages...")
 
+	// Multi-user profile
 	fmt.Println("Checking multi-user profile...")
 	listCmd := exec.Command("bash", "-c", ". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-env -q")
 	listCmd.Stdout = os.Stdout
 	listCmd.Stderr = os.Stderr
 	output, listErr := listCmd.Output()
 	if listErr == nil {
-		packages := strings.Split(strings.TrimSpace(string(output)), "\n")
-		for _, pkg := range packages {
-			if pkg == "" {
-				continue
-			}
-			fmt.Printf("Uninstalling package: %s\n", pkg)
-			uninstallCmd := exec.Command("bash", "-c", fmt.Sprintf(". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-env -e %s", pkg))
-			uninstallCmd.Stdout = os.Stdout
-			uninstallCmd.Stderr = os.Stderr
-			if uninstallErr := uninstallCmd.Run(); uninstallErr != nil {
-				fmt.Printf("Warning: Failed to uninstall package %s: %v\n", pkg, uninstallErr)
-			}
-		}
+		i.uninstallPackagesFromOutput(string(output), "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh")
 	} else {
 		fmt.Printf("Note: No packages found in multi-user profile or profile not accessible\n")
 	}
 
+	// Single-user profile
 	homeDir, homeDirErr := os.UserHomeDir()
 	if homeDirErr == nil {
 		fmt.Println("Checking single-user profile...")
-		listCmd = exec.Command("bash", "-c", fmt.Sprintf(". %s/.nix-profile/etc/profile.d/nix.sh && nix-env -q", homeDir))
+		profilePath := filepath.Join(homeDir, ".nix-profile/etc/profile.d/nix.sh")
+		listCmd = exec.Command("bash", "-c", fmt.Sprintf(". %s && nix-env -q", profilePath))
 		listCmd.Stdout = os.Stdout
 		listCmd.Stderr = os.Stderr
 		output, listErr = listCmd.Output()
 		if listErr == nil {
-			packages := strings.Split(strings.TrimSpace(string(output)), "\n")
-			for _, pkg := range packages {
-				if pkg == "" {
-					continue
-				}
-				fmt.Printf("Uninstalling package: %s\n", pkg)
-				uninstallCmd := exec.Command("bash", "-c", fmt.Sprintf(". %s/.nix-profile/etc/profile.d/nix.sh && nix-env -e %s", homeDir, pkg))
-				uninstallCmd.Stdout = os.Stdout
-				uninstallCmd.Stderr = os.Stderr
-				if uninstallErr := uninstallCmd.Run(); uninstallErr != nil {
-					fmt.Printf("Warning: Failed to uninstall package %s: %v\n", pkg, uninstallErr)
-				}
-			}
+			i.uninstallPackagesFromOutput(string(output), profilePath)
 		} else {
 			fmt.Printf("Note: No packages found in single-user profile or profile not accessible\n")
 		}
 	}
+}
 
+/*
+uninstallPackagesFromOutput uninstalls packages from a specific profile.
+*/
+func (i *Installer) uninstallPackagesFromOutput(output, profilePath string) {
+	packages := strings.Split(strings.TrimSpace(output), "\n")
+	for _, pkg := range packages {
+		if pkg == "" {
+			continue
+		}
+		fmt.Printf("Uninstalling package: %s\n", pkg)
+		uninstallCmd := exec.Command("bash", "-c", fmt.Sprintf(". %s && nix-env -e %s", profilePath, pkg))
+		uninstallCmd.Stdout = os.Stdout
+		uninstallCmd.Stderr = os.Stderr
+		if uninstallErr := uninstallCmd.Run(); uninstallErr != nil {
+			fmt.Printf("Warning: Failed to uninstall package %s: %v\n", pkg, uninstallErr)
+		}
+	}
+}
+
+/*
+stopDaemonServices stops Nix daemon services in multi-user mode.
+*/
+func (i *Installer) stopDaemonServices() {
 	multiUser, multiUserErr := i.IsMultiUser()
 	if multiUserErr == nil && multiUser {
 		fmt.Println("Stopping Nix daemon service...")
@@ -294,25 +272,12 @@ func (i *Installer) Uninstall(force bool) error {
 			}
 		}
 	}
+}
 
-	paths := []string{
-		"/nix",
-		"/etc/nix",
-		"/etc/profile.d/nix.sh",
-		"/etc/synthetic.conf",
-		"/etc/fstab",
-		"/Library/LaunchDaemons/org.nixos.nix-daemon.plist",
-		"/Library/LaunchDaemons/org.nixos.darwin-store.plist",
-	}
-
-	if userHomeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
-		paths = append(paths,
-			filepath.Join(userHomeDir, ".nix-profile"),
-			filepath.Join(userHomeDir, ".nix-defexpr"),
-			filepath.Join(userHomeDir, ".nix-channels"),
-		)
-	}
-
+/*
+cleanupShellFiles removes Nix-related lines from shell configuration files.
+*/
+func (i *Installer) cleanupShellFiles(force bool) {
 	shellFiles := []string{
 		"/etc/bashrc",
 		"/etc/zshrc",
@@ -348,8 +313,30 @@ func (i *Installer) Uninstall(force bool) error {
 			}
 		}
 	}
+}
 
-	fmt.Println("Removing Nix files and directories...")
+/*
+removeNixPaths removes all Nix-related files and directories.
+*/
+func (i *Installer) removeNixPaths(force bool) error {
+	paths := []string{
+		"/nix",
+		"/etc/nix",
+		"/etc/profile.d/nix.sh",
+		"/etc/synthetic.conf",
+		"/etc/fstab",
+		"/Library/LaunchDaemons/org.nixos.nix-daemon.plist",
+		"/Library/LaunchDaemons/org.nixos.darwin-store.plist",
+	}
+
+	if userHomeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
+		paths = append(paths,
+			filepath.Join(userHomeDir, ".nix-profile"),
+			filepath.Join(userHomeDir, ".nix-defexpr"),
+			filepath.Join(userHomeDir, ".nix-channels"),
+		)
+	}
+
 	for _, path := range paths {
 		if !i.fs.Exists(path) {
 			fmt.Printf("Skipping non-existent path: %s\n", path)
@@ -358,25 +345,7 @@ func (i *Installer) Uninstall(force bool) error {
 
 		fmt.Printf("Removing: %s\n", path)
 		if path == "/nix" {
-			if i.fs.Exists("/usr/sbin/diskutil") {
-				fmt.Println("Attempting macOS unmount...")
-				unmountCmd := exec.Command("sudo", "diskutil", "unmount", "force", "/nix")
-				unmountCmd.Stdout = os.Stdout
-				unmountCmd.Stderr = os.Stderr
-				if unmountErr := unmountCmd.Run(); unmountErr != nil {
-					fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
-				}
-			}
-
-			if i.fs.Exists("/bin/umount") {
-				fmt.Println("Attempting Linux unmount...")
-				unmountCmd := exec.Command("sudo", "umount", "-f", "/nix")
-				unmountCmd.Stdout = os.Stdout
-				unmountCmd.Stderr = os.Stderr
-				if unmountErr := unmountCmd.Run(); unmountErr != nil {
-					fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
-				}
-			}
+			i.unmountNix()
 		}
 
 		removeCmd := exec.Command("sudo", "rm", "-rfv", path)
@@ -388,6 +357,70 @@ func (i *Installer) Uninstall(force bool) error {
 			}
 			fmt.Printf("Warning: Failed to remove %s: %v\n", path, removeErr)
 		}
+	}
+	return nil
+}
+
+/*
+unmountNix attempts to unmount the Nix store on both macOS and Linux.
+*/
+func (i *Installer) unmountNix() {
+	if i.fs.Exists("/usr/sbin/diskutil") {
+		fmt.Println("Attempting macOS unmount...")
+		unmountCmd := exec.Command("sudo", "diskutil", "unmount", "force", "/nix")
+		unmountCmd.Stdout = os.Stdout
+		unmountCmd.Stderr = os.Stderr
+		if unmountErr := unmountCmd.Run(); unmountErr != nil {
+			fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
+		}
+	}
+
+	if i.fs.Exists("/bin/umount") {
+		fmt.Println("Attempting Linux unmount...")
+		unmountCmd := exec.Command("sudo", "umount", "-f", "/nix")
+		unmountCmd.Stdout = os.Stdout
+		unmountCmd.Stderr = os.Stderr
+		if unmountErr := unmountCmd.Run(); unmountErr != nil {
+			fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
+		}
+	}
+}
+
+/*
+Uninstall removes Nix installation from the system.
+It performs the following steps:
+1. Verifies Nix is installed
+2. Checks for running Nix processes (unless force is true)
+3. Uninstalls all packages
+4. Stops Nix daemon services if in multi-user mode
+5. Removes Nix files and directories
+6. Cleans up shell configurations
+7. Verifies uninstallation was successful
+
+The force parameter allows bypassing certain checks and errors.
+*/
+func (i *Installer) Uninstall(force bool) error {
+	fmt.Println("Starting Nix uninstallation...")
+
+	if !i.IsInstalled() {
+		fmt.Println("No Nix installation found")
+		return nil
+	}
+
+	if !force {
+		fmt.Println("Checking for running Nix processes...")
+		processCmd := exec.Command("pgrep", "-f", "nix")
+		if processErr := processCmd.Run(); processErr == nil {
+			return fmt.Errorf("nix processes are still running. Please stop them first or use --force")
+		}
+	}
+
+	i.uninstallPackages()
+	i.stopDaemonServices()
+	i.cleanupShellFiles(force)
+
+	if removeErr := i.removeNixPaths(force); removeErr != nil {
+		return removeErr
 	}
 
 	if cleanupErr := i.cleanupBackupFiles(); cleanupErr != nil {
