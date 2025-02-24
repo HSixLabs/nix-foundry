@@ -45,41 +45,34 @@ jobs:
             const latestCommit = execSync('git log -1 --pretty=format:%s').toString().toLowerCase();
             console.log('Latest commit:', latestCommit);
 
-            // Valid scopes from commitlint config
-            const validScopes = ['api', 'deps', 'mod'];
-            const scopePattern = new RegExp(`^(feat|fix)\\((${validScopes.join('|')})\\)!?:`);
+            // Valid scopes from commitlint config (but make them optional)
+            const validScopes = ['deps', 'mod'];
+            const scopeRegex = `(?:\\((?:${validScopes.join('|')})?\\))?`;
 
             let releaseType = '';
 
             // Check for breaking changes
             if (
-              latestCommit.match(/^(feat|fix)!:/) ||
-              latestCommit.match(new RegExp(`^(feat|fix)\\((${validScopes.join('|')})\\)!:`)) ||
+              latestCommit.match(new RegExp(`^feat${scopeRegex}!:`)) ||
+              latestCommit.match(new RegExp(`^fix${scopeRegex}!:`)) ||
               latestCommit.includes('breaking change:')
             ) {
               releaseType = 'major';
             }
             // Check for features
             else if (
-              latestCommit.startsWith('feat:') ||
-              latestCommit.match(/^feat\([^)]+\):/)
+              latestCommit.match(new RegExp(`^feat${scopeRegex}:`))
             ) {
               releaseType = 'minor';
             }
             // Check for patches
             else if (
-              latestCommit.startsWith('fix:') ||
-              latestCommit.match(/^fix\([^)]+\):/) ||
-              latestCommit.startsWith('perf:') ||
-              latestCommit.match(/^perf\([^)]+\):/) ||
-              latestCommit.startsWith('refactor:') ||
-              latestCommit.match(/^refactor\([^)]+\):/) ||
-              latestCommit.startsWith('build:') ||
-              latestCommit.match(/^build\([^)]+\):/) ||
-              latestCommit.startsWith('deps:') ||
-              latestCommit.match(/^deps\([^)]+\):/) ||
-              latestCommit.startsWith('go:') ||
-              latestCommit.match(/^go\([^)]+\):/)
+              latestCommit.match(new RegExp(`^fix${scopeRegex}:`)) ||
+              latestCommit.match(new RegExp(`^perf${scopeRegex}:`)) ||
+              latestCommit.match(new RegExp(`^refactor${scopeRegex}:`)) ||
+              latestCommit.match(new RegExp(`^build${scopeRegex}:`)) ||
+              latestCommit.match(new RegExp(`^deps${scopeRegex}:`)) ||
+              latestCommit.match(new RegExp(`^go${scopeRegex}:`))
             ) {
               releaseType = 'patch';
             }
@@ -99,20 +92,20 @@ jobs:
             const body = `No release flag detected in the latest commit. To trigger a release, use conventional commit format:
 
             Major version (Breaking changes):
-            - \`feat!: change configuration file format\`
-            - \`feat(api)!: change API response format\`
-            - \`fix!: remove deprecated function\`
+            - \`feat!: breaking change to command structure\`
+            - \`feat(mod)!: change module system\`
+            - \`fix!: remove deprecated functionality\`
             - Include \`BREAKING CHANGE:\` in the commit message
 
             Minor version (Features):
             - \`feat: add new command\`
-            - \`feat(api): add new endpoint\`
+            - \`feat(mod): add new module feature\`
 
             Patch version:
-            - \`fix: resolve config parsing issue\`
-            - \`fix(api): fix endpoint response\`
-            - \`perf: improve build speed\`
-            - \`refactor: restructure command handling\`
+            - \`fix: resolve config parsing\`
+            - \`fix(mod): fix module loading\`
+            - \`perf: improve performance\`
+            - \`refactor: improve code structure\`
             - \`build: update build system\`
             - \`deps: update dependencies\`
             - \`go: update Go version\`
@@ -124,9 +117,8 @@ jobs:
             - \`ci: update workflows\`
             - \`docs: update readme\`
 
-            Valid scopes: api, deps, mod
-
-            Note: All commit messages must follow the conventional commit format and use approved scopes.`;
+            Valid scopes: mod, deps
+            Note: Scopes are optional`;
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
