@@ -200,27 +200,31 @@ jobs:
                     1. Download the binary for your platform:
                     \`\`\`bash
                     # For macOS (Intel)
-                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_darwin_amd64.tar.gz -o nix-foundry.tar.gz
+                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_darwin_amd64.tar.gz -o nix-foundry-beta.tar.gz
 
                     # For macOS (Apple Silicon)
-                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_darwin_arm64.tar.gz -o nix-foundry.tar.gz
+                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_darwin_arm64.tar.gz -o nix-foundry-beta.tar.gz
 
                     # For Linux (x86_64)
-                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_linux_amd64.tar.gz -o nix-foundry.tar.gz
+                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_linux_amd64.tar.gz -o nix-foundry-beta.tar.gz
 
                     # For Linux (ARM64)
-                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_linux_arm64.tar.gz -o nix-foundry.tar.gz
+                    curl -L https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/v${betaVersion}/nix-foundry_${betaVersion}_linux_arm64.tar.gz -o nix-foundry-beta.tar.gz
                     \`\`\`
 
-                    2. Extract and install:
+                    2. Extract and install locally:
                     \`\`\`bash
-                    tar xzf nix-foundry.tar.gz
-                    sudo mv nix-foundry /usr/local/bin/
+                    mkdir -p nix-foundry-beta && tar xzf nix-foundry-beta.tar.gz -C nix-foundry-beta
+                    cd nix-foundry-beta
+                    # Rename to avoid conflicts with stable version
+                    mv nix-foundry nix-foundry-beta
+                    # Add current directory to PATH for testing
+                    export PATH=$PWD:$PATH
                     \`\`\`
 
                     3. Verify the installation:
                     \`\`\`bash
-                    nix-foundry version
+                    nix-foundry-beta --help
                     \`\`\`
 
                     ${changelog}`;
