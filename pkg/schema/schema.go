@@ -7,10 +7,10 @@ package schema
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/shawnkhoffman/nix-foundry/pkg/platform"
 	"gopkg.in/yaml.v3"
 )
 
@@ -214,7 +214,7 @@ GetConfigPath returns the path to the configuration file.
 It constructs the path based on the user's home directory.
 */
 func GetConfigPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := platform.GetRealUserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
