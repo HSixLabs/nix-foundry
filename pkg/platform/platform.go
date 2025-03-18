@@ -5,9 +5,11 @@ It handles platform detection, path resolution, and system-specific configuratio
 package platform
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -153,26 +155,80 @@ func GetNixProfileDir() (string, error) {
 }
 
 /*
-GetShellConfigFile returns the appropriate shell configuration file path for the given shell.
-It handles platform-specific differences in shell configuration file locations.
+GetShellConfigFile returns the path to the configuration file for the specified shell.
+It uses the real user's home directory when running under sudo.
 */
 func GetShellConfigFile(shell string) (string, error) {
-	homeDir, err := GetHomeDir()
+	homeDir, err := GetRealUserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
+	var rcFile string
 	switch shell {
-	case "zsh":
-		return filepath.Join(homeDir, ".zshrc"), nil
 	case "bash":
-		if runtime.GOOS == "darwin" {
-			return filepath.Join(homeDir, ".bash_profile"), nil
-		}
-		return filepath.Join(homeDir, ".bashrc"), nil
+		rcFile = filepath.Join(homeDir, ".bashrc")
+	case "zsh":
+		rcFile = filepath.Join(homeDir, ".zshrc")
 	case "fish":
-		return filepath.Join(homeDir, ".config", "fish", "config.fish"), nil
+		rcFile = filepath.Join(homeDir, ".config", "fish", "config.fish")
 	default:
-		return filepath.Join(homeDir, ".profile"), nil
+		return "", fmt.Errorf("unsupported shell: %s", shell)
 	}
+
+	return rcFile, nil
+}
+
+/*
+GetRealUserHomeDir returns the home directory of the real user, even when running under sudo.
+It first checks SUDO_USER environment variable and falls back to the current user's home directory.
+*/
+func GetRealUserHomeDir() (string, error) {
+	if os.Getenv("SUDO_USER") == "" {
+		return GetHomeDir()
+	}
+
+	username := os.Getenv("SUDO_USER")
+
+	if runtime.GOOS == "linux" {
+		if IsWSL() {
+			return filepath.Join("/home", username), nil
+		}
+		return filepath.Join("/home", username), nil
+	}
+
+	if runtime.GOOS == "darwin" {
+		return filepath.Join("/Users", username), nil
+	}
+
+	return GetHomeDir()
+}
+
+/*
+GetRealUser returns the UID and GID of the real user, even when running under sudo.
+*/
+func GetRealUser() (uid, gid int, err error) {
+	uid = os.Getuid()
+	gid = os.Getgid()
+
+	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
+		if parsedUID, parseErr := strconv.Atoi(sudoUID); parseErr == nil {
+			uid = parsedUID
+		}
+	}
+
+	if sudoGID := os.Getenv("SUDO_GID"); sudoGID != "" {
+		if parsedGID, parseErr := strconv.Atoi(sudoGID); parseErr == nil {
+			gid = parsedGID
+		}
+	}
+
+	return uid, gid, nil
+}
+
+/*
+IsRunningAsSudo checks if the current process is running under sudo.
+*/
+func IsRunningAsSudo() bool {
+	return os.Getenv("SUDO_USER") != ""
 }

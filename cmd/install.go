@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -130,18 +129,9 @@ func createInitialConfig(manager, shell string, packages []string) error {
 		return fmt.Errorf("failed to create config directory: %w", mkdirErr)
 	}
 
-	uid := os.Getuid()
-	gid := os.Getgid()
-
-	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
-		if parsedUID, parseErr := strconv.Atoi(sudoUID); parseErr == nil {
-			uid = parsedUID
-		}
-	}
-	if sudoGID := os.Getenv("SUDO_GID"); sudoGID != "" {
-		if parsedGID, parseErr := strconv.Atoi(sudoGID); parseErr == nil {
-			gid = parsedGID
-		}
+	uid, gid, err := platform.GetRealUser()
+	if err != nil {
+		return fmt.Errorf("failed to get real user: %w", err)
 	}
 
 	if chownErr := os.Chown(configDir, uid, gid); chownErr != nil {
@@ -201,7 +191,7 @@ func initializeNixChannels() error {
 configureNixSettings creates and configures Nix settings for the current user.
 */
 func configureNixSettings(uid, gid int) error {
-	homeDir, homeDirErr := os.UserHomeDir()
+	homeDir, homeDirErr := platform.GetRealUserHomeDir()
 	if homeDirErr != nil {
 		return fmt.Errorf("failed to get home directory: %w", homeDirErr)
 	}
@@ -239,17 +229,32 @@ installSelectedPackages installs the selected packages using nix-env.
 */
 func installSelectedPackages(packages []string) error {
 	fmt.Println("Installing selected packages...")
+
 	for _, pkg := range packages {
 		fmt.Printf("Installing %s...\n", pkg)
+
 		nixEnvCmd := fmt.Sprintf(". %s && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 /nix/var/nix/profiles/default/bin/nix-env -iA nixpkgs.%s -Q",
 			"/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
 			pkg)
-		execCmd := exec.Command("bash", "-c", nixEnvCmd)
-		if output, execErr := execCmd.CombinedOutput(); execErr != nil {
+
+		var cmd *exec.Cmd
+		if platform.IsRunningAsSudo() && platform.IsWSL() {
+			sudoUser := os.Getenv("SUDO_USER")
+			if sudoUser != "" {
+				cmd = exec.Command("su", "-", sudoUser, "-c", nixEnvCmd)
+			} else {
+				cmd = exec.Command("bash", "-c", nixEnvCmd)
+			}
+		} else {
+			cmd = exec.Command("bash", "-c", nixEnvCmd)
+		}
+
+		if output, execErr := cmd.CombinedOutput(); execErr != nil {
 			return fmt.Errorf("failed to install package %s: %s: %w", pkg, output, execErr)
 		}
-		fmt.Printf("✓ Installed %s\n", pkg)
 	}
+
+	fmt.Println("✨ Selected packages installed successfully")
 	return nil
 }
 
@@ -334,17 +339,9 @@ func runInstall(command *cobra.Command, args []string) error {
 		return channelErr
 	}
 
-	uid := os.Getuid()
-	gid := os.Getgid()
-	if sudoUID := os.Getenv("SUDO_UID"); sudoUID != "" {
-		if parsedUID, parseErr := strconv.Atoi(sudoUID); parseErr == nil {
-			uid = parsedUID
-		}
-	}
-	if sudoGID := os.Getenv("SUDO_GID"); sudoGID != "" {
-		if parsedGID, parseErr := strconv.Atoi(sudoGID); parseErr == nil {
-			gid = parsedGID
-		}
+	uid, gid, err := platform.GetRealUser()
+	if err != nil {
+		return fmt.Errorf("failed to get real user: %w", err)
 	}
 
 	if configErr := configureNixSettings(uid, gid); configErr != nil {
@@ -358,26 +355,32 @@ func runInstall(command *cobra.Command, args []string) error {
 addToPath adds nix-foundry to the user's PATH by modifying their shell configuration file.
 */
 func addToPath(shell string) error {
-	homeDir, err := os.UserHomeDir()
+	rcFile, err := platform.GetShellConfigFile(shell)
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to get shell config file: %w", err)
 	}
 
-	var rcFile string
-	switch shell {
-	case "bash":
-		rcFile = filepath.Join(homeDir, ".bashrc")
-	case "zsh":
-		rcFile = filepath.Join(homeDir, ".zshrc")
-	case "fish":
-		rcFile = filepath.Join(homeDir, ".config", "fish", "config.fish")
-	default:
-		return fmt.Errorf("unsupported shell: %s", shell)
+	if platform.IsRunningAsSudo() {
+		realHomeDir, homeErr := platform.GetRealUserHomeDir()
+		if homeErr != nil {
+			return fmt.Errorf("failed to get real user home directory: %w", homeErr)
+		}
+		currentHome, _ := os.UserHomeDir()
+		rcFile = strings.Replace(rcFile, currentHome, realHomeDir, 1)
 	}
 
 	if shell == "fish" {
 		if mkdirErr := os.MkdirAll(filepath.Dir(rcFile), 0775); mkdirErr != nil {
 			return fmt.Errorf("failed to create fish config directory: %w", mkdirErr)
+		}
+
+		if platform.IsRunningAsSudo() {
+			uid, gid, userErr := platform.GetRealUser()
+			if userErr == nil {
+				if chownErr := os.Chown(filepath.Dir(rcFile), uid, gid); chownErr != nil {
+					fmt.Printf("Warning: Failed to set fish config directory ownership: %v\n", chownErr)
+				}
+			}
 		}
 	}
 
@@ -436,6 +439,15 @@ fi
 
 	if _, writeErr := f.WriteString(content); writeErr != nil {
 		return fmt.Errorf("failed to update rc file: %w", writeErr)
+	}
+
+	if platform.IsRunningAsSudo() {
+		uid, gid, userErr := platform.GetRealUser()
+		if userErr == nil {
+			if chownErr := os.Chown(rcFile, uid, gid); chownErr != nil {
+				fmt.Printf("Warning: Failed to set rc file ownership: %v\n", chownErr)
+			}
+		}
 	}
 
 	return nil
