@@ -14,8 +14,7 @@ module.exports = {
         'test',
         'build',
         'ci',
-        'deps',
-        'go',
+        'chore',
         'revert'
       ]
     ],
