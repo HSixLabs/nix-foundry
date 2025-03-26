@@ -1,0 +1,180 @@
+name: CI/CD
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  ci:
+    name: "Preflight Checks"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ github.event.pull_request.head.sha }}
+      ref: ${{ github.ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hsixlabs/github-actions/ci-tests@main
+        with:
+          project_type: "go"
+          go_version: "1.24"
+          run_lint: true
+          working_directory: "."
+
+  beta_release:
+    name: "Create Beta Release"
+    if: github.event_name == 'pull_request'
+    needs: [ci]
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.release.outputs.should_release }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      next_version: ${{ steps.release.outputs.next_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: release
+        uses: hsixlabs/github-actions/semantic-release@main
+        with:
+          sha: ${{ needs.ci.outputs.sha }}
+          ref: ${{ needs.ci.outputs.ref }}
+          is_beta: "true"
+          github_environment: "staging"
+          dry_run: "false"
+
+  build_beta:
+    name: "Build Beta Release"
+    if: github.event_name == 'pull_request' && needs.beta_release.outputs.should_release == 'true'
+    needs: [beta_release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.beta_release.outputs.sha }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build Binaries
+        run: |
+          VERSION="${{ needs.beta_release.outputs.version }}"
+          mkdir -p dist
+
+          # Build for macOS (Intel)
+          GOOS=darwin GOARCH=amd64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_darwin_amd64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for macOS (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_darwin_arm64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for Linux (x86_64)
+          GOOS=linux GOARCH=amd64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_linux_amd64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for Linux (ARM64)
+          GOOS=linux GOARCH=arm64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_linux_arm64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Attach Binaries to Release
+        run: |
+          VERSION="${{ needs.beta_release.outputs.version }}"
+          gh release upload "v${VERSION}" dist/nix-foundry_${VERSION}_*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  prod_release:
+    name: "Create Production Release"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.release.outputs.should_release }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      next_version: ${{ steps.release.outputs.next_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: release
+        uses: hsixlabs/github-actions/semantic-release@main
+        with:
+          sha: ${{ github.sha }}
+          ref: ${{ github.ref }}
+          is_beta: "false"
+          github_environment: "production"
+          dry_run: "false"
+
+  build_prod:
+    name: "Build Production Release"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.prod_release.outputs.should_release == 'true'
+    needs: [prod_release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prod_release.outputs.sha }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build Binaries
+        run: |
+          VERSION="${{ needs.prod_release.outputs.version }}"
+          mkdir -p dist
+
+          # Build for macOS (Intel)
+          GOOS=darwin GOARCH=amd64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_darwin_amd64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for macOS (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_darwin_arm64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for Linux (x86_64)
+          GOOS=linux GOARCH=amd64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_linux_amd64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+          # Build for Linux (ARM64)
+          GOOS=linux GOARCH=arm64 go build -o dist/nix-foundry
+          tar czf "dist/nix-foundry_${VERSION}_linux_arm64.tar.gz" -C dist nix-foundry
+          rm dist/nix-foundry
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: dist/
+
+      - name: Attach Binaries to Release
+        run: |
+          VERSION="${{ needs.prod_release.outputs.version }}"
+          gh release upload "v${VERSION}" dist/nix-foundry_${VERSION}_*.tar.gz --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
