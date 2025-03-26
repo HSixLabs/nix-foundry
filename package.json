@@ -1,7 +1,14 @@
 {
+  "name": "nix-foundry",
   "private": true,
+  "version": "0.0.0-development",
   "devDependencies": {
     "prettier": "^3.5.2",
-    "@prettier/plugin-xml": "^0.10.0"
+    "@prettier/plugin-xml": "^0.10.0",
+    "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/github": "^8.0.7",
+    "@semantic-release/release-notes-generator": "^10.0.3",
+    "conventional-changelog-conventionalcommits": "^4.6.3",
+    "semantic-release": "^19.0.5"
   }
 }
