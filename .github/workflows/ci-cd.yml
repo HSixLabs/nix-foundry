@@ -14,7 +14,7 @@ permissions:
 jobs:
   lint:
     name: "Lint"
-    if: github.event_name == 'pull_request'
+    if: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,14 +28,22 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          args: "--version"
+          args: version
+          install-mode: binary
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          verify: true
+          only-new-issues: false
+          skip-cache: false
+          skip-save-cache: false
+          problem-matchers: false
+          cache-invalidation-interval: 7
 
       - name: Run linting
         run: golangci-lint run ./...
 
   test:
     name: "Test"
-    if: github.event_name == 'pull_request'
+    if: true
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ github.event.pull_request.head.sha }}
@@ -59,7 +67,7 @@ jobs:
 
   beta_release:
     name: "Create Beta Release"
-    if: github.event_name == 'pull_request'
+    if: true
     needs: [lint, test]
     runs-on: ubuntu-latest
     outputs:
@@ -80,7 +88,7 @@ jobs:
 
   build_beta:
     name: "Build Beta Release"
-    if: github.event_name == 'pull_request' && needs.beta_release.outputs.should_release == 'true'
+    if: true && needs.beta_release.outputs.should_release == 'true'
     needs: [beta_release]
     runs-on: ubuntu-latest
     steps:
