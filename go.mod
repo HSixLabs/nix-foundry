@@ -3,7 +3,7 @@ module github.com/shawnkhoffman/nix-foundry
 go 1.21
 
 require (
-	github.com/charmbracelet/bubbletea v1.3.3
+	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/spf13/cobra v1.9.1
 	golang.org/x/text v0.21.0
