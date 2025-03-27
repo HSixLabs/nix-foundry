@@ -1,4 +1,4 @@
-.PHONY: all build test lint clean fmt pre-commit deps
+.PHONY: all build test lint clean fmt pre-commit deps validate-branch
 
 BINARY_NAME := nix-foundry
 
@@ -37,3 +37,6 @@ deps:
 	go mod tidy
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	npm install
+
+validate-branch:
+	@./scripts/validate-branch-name.sh
