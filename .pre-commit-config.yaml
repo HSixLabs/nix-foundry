@@ -4,7 +4,7 @@ repos:
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
-      # - id: check-yaml
+      - id: check-yaml
       - id: check-json
       - id: check-added-large-files
       - id: mixed-line-ending
@@ -29,11 +29,12 @@ repos:
 
   - repo: local
     hooks:
-      - id: go-mod-download
-        name: go mod download
-        entry: go mod download
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go mod tidy
         language: system
         pass_filenames: false
+        files: ^go\.mod$
 
       - id: go-test
         name: Run Go tests
@@ -49,6 +50,20 @@ repos:
         files: ^(pkg/|cmd/|service/|docs/)
         pass_filenames: false
         stages: [pre-commit]
+
+      - id: branch-name-validation
+        name: Branch name validation
+        entry: ./scripts/validate-branch-name.sh
+        language: system
+        pass_filenames: false
+        stages: [pre-push, pre-commit]
+        always_run: true
+        require_serial: true
+        verbose: true
+        env:
+          CI: ${CI}
+          GITHUB_HEAD_REF: ${GITHUB_HEAD_REF}
+          GITHUB_REF: ${GITHUB_REF}
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.20.0
