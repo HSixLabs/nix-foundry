@@ -12,26 +12,62 @@ permissions:
   id-token: write
 
 jobs:
-  ci:
-    name: "Preflight Checks"
-    if: github.event_name == 'pull_request'
+  lint:
+    name: "Lint"
+    if: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          install-mode: binary
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          verify: true
+          only-new-issues: false
+          skip-cache: false
+          skip-save-cache: false
+          problem-matchers: false
+          cache-invalidation-interval: 7
+
+      - name: Run linting
+        run: golangci-lint run ./...
+
+  test:
+    name: "Test"
+    if: true
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ github.event.pull_request.head.sha }}
       ref: ${{ github.ref }}
     steps:
       - uses: actions/checkout@v4
-      - uses: hsixlabs/github-actions/ci-tests@main
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          project_type: "go"
-          go_version: "1.24"
-          run_lint: true
-          working_directory: "."
+          go-version: 1.24
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Generate coverage report
+        run: go tool cover -func=coverage.out
 
   beta_release:
     name: "Create Beta Release"
-    if: github.event_name == 'pull_request'
-    needs: [ci]
+    if: true
+    needs: [lint, test]
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.release.outputs.should_release }}
@@ -43,15 +79,15 @@ jobs:
       - id: release
         uses: hsixlabs/github-actions/semantic-release@main
         with:
-          sha: ${{ needs.ci.outputs.sha }}
-          ref: ${{ needs.ci.outputs.ref }}
+          sha: ${{ needs.test.outputs.sha }}
+          ref: ${{ needs.test.outputs.ref }}
           is_beta: "true"
           github_environment: "staging"
           dry_run: "false"
 
   build_beta:
     name: "Build Beta Release"
-    if: github.event_name == 'pull_request' && needs.beta_release.outputs.should_release == 'true'
+    if: true && needs.beta_release.outputs.should_release == 'true'
     needs: [beta_release]
     runs-on: ubuntu-latest
     steps:
