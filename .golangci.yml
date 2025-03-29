@@ -43,7 +43,7 @@ run:
   tests: true
   modules-download-mode: readonly
   allow-parallel-runners: true
-  go: '1.23'
+  go: '1.24'
 
 issues:
   exclude:
