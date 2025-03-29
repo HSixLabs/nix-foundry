@@ -5,17 +5,16 @@ module.exports = {
       2,
       'always',
       [
-        'feat',
-        'fix',
-        'docs',
-        'style',
-        'refactor',
-        'perf',
-        'test',
-        'build',
-        'ci',
-        'chore',
-        'revert'
+        'feat',     // New feature (official)
+        'fix',      // Bug fix (official)
+        'docs',     // Documentation changes
+        'style',    // Code style changes
+        'refactor', // Code refactoring
+        'perf',     // Performance improvements
+        'test',     // Test changes
+        'build',    // Build system changes
+        'ci',       // CI configuration changes
+        'chore'     // Maintenance tasks
       ]
     ],
     'type-case': [2, 'always', 'lower-case'],
@@ -23,7 +22,6 @@ module.exports = {
     'subject-empty': [2, 'never'],
     'subject-full-stop': [2, 'never', '.'],
     'subject-case': [0],
-    'scope-enum': [2, 'always', ['api', 'deps', 'mod']],
     'scope-case': [2, 'always', 'lower-case']
   }
 };
