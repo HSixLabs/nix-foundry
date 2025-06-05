@@ -225,40 +225,6 @@ func configureNixSettings(uid, gid int) error {
 }
 
 /*
-installSelectedPackages installs the selected packages using nix-env.
-*/
-func installSelectedPackages(packages []string) error {
-	fmt.Println("Installing selected packages...")
-
-	for _, pkg := range packages {
-		fmt.Printf("Installing %s...\n", pkg)
-
-		nixEnvCmd := fmt.Sprintf(". %s && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 /nix/var/nix/profiles/default/bin/nix-env -iA nixpkgs.%s -Q",
-			"/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
-			pkg)
-
-		var cmd *exec.Cmd
-		if platform.IsRunningAsSudo() && platform.IsWSL() {
-			sudoUser := os.Getenv("SUDO_USER")
-			if sudoUser != "" {
-				cmd = exec.Command("su", "-", sudoUser, "-c", nixEnvCmd)
-			} else {
-				cmd = exec.Command("bash", "-c", nixEnvCmd)
-			}
-		} else {
-			cmd = exec.Command("bash", "-c", nixEnvCmd)
-		}
-
-		if output, execErr := cmd.CombinedOutput(); execErr != nil {
-			return fmt.Errorf("failed to install package %s: %s: %w", pkg, output, execErr)
-		}
-	}
-
-	fmt.Println("✨ Selected packages installed successfully")
-	return nil
-}
-
-/*
 runInstall handles the main installation process for Nix Foundry. It:
 1. Verifies proper permissions for multi-user installation
 2. Runs the installation TUI to gather user preferences
@@ -332,8 +298,10 @@ func runInstall(_ *cobra.Command, _ []string) error {
 
 	fmt.Printf("✨ Nix installed successfully in %s mode\n",
 		map[bool]string{true: "multi-user", false: "single-user"}[multiUser])
-	fmt.Println("\nTo complete the setup and install your selected packages, run:")
-	fmt.Println("  nix-foundry config apply")
+
+	if copyErr := copyBinaryToLocalBin(); copyErr != nil {
+		fmt.Printf("Warning: Failed to copy nix-foundry to PATH: %v\n", copyErr)
+	}
 
 	if channelErr := initializeNixChannels(); channelErr != nil {
 		return channelErr
@@ -348,7 +316,111 @@ func runInstall(_ *cobra.Command, _ []string) error {
 		return configErr
 	}
 
-	return installSelectedPackages(packages)
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("🎉 INSTALLATION COMPLETE!")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println()
+	
+	if platform.GetNixSystem() == "aarch64-darwin" || platform.GetNixSystem() == "x86_64-darwin" {
+		fmt.Println("⚠️  IMPORTANT FOR macOS USERS:")
+		fmt.Println("To install GUI applications, you need to:")
+		fmt.Println("1. Open System Preferences → Privacy & Security → Full Disk Access")
+		fmt.Println("2. Click the '+' button and add 'nix'")
+		fmt.Println("3. This allows Nix to create the necessary directories for GUI apps")
+		fmt.Println()
+		fmt.Println("Without this permission, GUI apps will fail with 'Operation not permitted' errors.")
+		fmt.Println(strings.Repeat("-", 60))
+		fmt.Println()
+	}
+	
+	fmt.Println("Next steps:")
+	fmt.Println("1. Close and reopen your terminal (or run: source ~/.zshrc)")
+	fmt.Println("2. Install your selected packages by running:")
+	fmt.Println("   nix-foundry config apply")
+	fmt.Println()
+	fmt.Println("Note: Package installation runs in user context to avoid permission issues.")
+
+	return nil
+}
+
+/*
+copyBinaryToLocalBin copies the nix-foundry binary to ~/.local/bin so it's available in PATH.
+*/
+func copyBinaryToLocalBin() error {
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	var homeDir string
+	if platform.IsRunningAsSudo() {
+		realHomeDir, homeErr := platform.GetRealUserHomeDir()
+		if homeErr != nil {
+			return fmt.Errorf("failed to get real user home directory: %w", homeErr)
+		}
+		homeDir = realHomeDir
+	} else {
+		userHomeDir, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return fmt.Errorf("failed to get user home directory: %w", homeErr)
+		}
+		homeDir = userHomeDir
+	}
+
+	localBinDir := filepath.Join(homeDir, ".local", "bin")
+	if mkdirErr := os.MkdirAll(localBinDir, 0755); mkdirErr != nil {
+		return fmt.Errorf("failed to create local bin directory: %w", mkdirErr)
+	}
+
+	if platform.IsRunningAsSudo() {
+		uid, gid, userErr := platform.GetRealUser()
+		if userErr == nil {
+			if chownErr := os.Chown(localBinDir, uid, gid); chownErr != nil {
+				fmt.Printf("Warning: Failed to set local bin directory ownership: %v\n", chownErr)
+			}
+		}
+	}
+
+	destPath := filepath.Join(localBinDir, "nix-foundry")
+	if copyErr := copyFile(execPath, destPath); copyErr != nil {
+		return fmt.Errorf("failed to copy binary: %w", copyErr)
+	}
+
+	if chmodErr := os.Chmod(destPath, 0755); chmodErr != nil {
+		return fmt.Errorf("failed to set executable permissions: %w", chmodErr)
+	}
+
+	if platform.IsRunningAsSudo() {
+		uid, gid, userErr := platform.GetRealUser()
+		if userErr == nil {
+			if chownErr := os.Chown(destPath, uid, gid); chownErr != nil {
+				fmt.Printf("Warning: Failed to set binary ownership: %v\n", chownErr)
+			}
+		}
+	}
+
+	fmt.Printf("✨ nix-foundry binary copied to %s\n", destPath)
+	return nil
+}
+
+/*
+copyFile copies a file from src to dst.
+*/
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = dstFile.ReadFrom(srcFile)
+	return err
 }
 
 /*
