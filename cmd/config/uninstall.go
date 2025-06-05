@@ -34,7 +34,7 @@ runUninstall executes the uninstallation of Nix Foundry configuration files.
 It removes all configuration files and directories using the configuration service.
 Returns an error if the uninstallation process fails.
 */
-func runUninstall(cmd *cobra.Command, args []string) error {
+func runUninstall(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
 	if err := configSvc.UninstallConfig(); err != nil {
 		return fmt.Errorf("failed to uninstall configuration: %w", err)

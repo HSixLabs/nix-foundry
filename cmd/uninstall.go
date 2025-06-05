@@ -31,7 +31,7 @@ func init() {
 	uninstallCmd.Flags().BoolVar(&force, "force", false, "Force uninstallation even if errors occur")
 }
 
-func runUninstall(cmd *cobra.Command, args []string) error {
+func runUninstall(_ *cobra.Command, _ []string) error {
 	uninstallNix, confirmed, err := tui.RunUninstallTUI()
 	if err != nil {
 		return err

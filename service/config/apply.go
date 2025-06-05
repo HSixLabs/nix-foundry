@@ -11,12 +11,12 @@ import (
 	"github.com/shawnkhoffman/nix-foundry/pkg/schema"
 )
 
-// ApplyService handles configuration application.
+// ApplyService handles configuration application operations.
 type ApplyService struct {
 	fs filesystem.FileSystem
 }
 
-// NewApplyService creates a new apply service.
+// NewApplyService creates a new configuration apply service.
 func NewApplyService(fs filesystem.FileSystem) *ApplyService {
 	return &ApplyService{fs: fs}
 }
@@ -40,7 +40,7 @@ func (s *ApplyService) applyPackages(config *schema.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	scriptPath := filepath.Join(tmpDir, "install.sh")
 	var script string
@@ -73,7 +73,7 @@ func (s *ApplyService) applyScripts(config *schema.Config) error {
 		if err != nil {
 			return fmt.Errorf("failed to create temp directory: %w", err)
 		}
-		defer os.RemoveAll(tmpDir)
+		defer func() { _ = os.RemoveAll(tmpDir) }()
 
 		scriptPath := filepath.Join(tmpDir, "script.sh")
 		if err := s.fs.WriteFile(scriptPath, []byte(script.Commands), 0755); err != nil {

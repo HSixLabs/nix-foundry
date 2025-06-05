@@ -150,7 +150,7 @@ fi
 	if openErr != nil {
 		return fmt.Errorf("failed to open rc file: %w", openErr)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, writeErr := f.WriteString(content); writeErr != nil {
 		return fmt.Errorf("failed to update rc file: %w", writeErr)

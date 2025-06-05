@@ -93,7 +93,7 @@ func (fs *OSFileSystem) Copy(src, dst string) error {
 	if openErr != nil {
 		return openErr
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	mkdirErr := fs.MkdirAll(dst, 0755)
 	if mkdirErr != nil {
@@ -104,7 +104,7 @@ func (fs *OSFileSystem) Copy(src, dst string) error {
 	if createErr != nil {
 		return createErr
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	_, copyErr := io.Copy(dstFile, srcFile)
 	return copyErr

@@ -19,8 +19,11 @@ Platform represents a supported operating system platform.
 type Platform string
 
 const (
-	Linux   Platform = "linux"
-	MacOS   Platform = "darwin"
+	// Linux represents the Linux platform.
+	Linux Platform = "linux"
+	// MacOS represents the macOS platform.
+	MacOS Platform = "darwin"
+	// Windows represents the Windows platform.
 	Windows Platform = "windows"
 )
 

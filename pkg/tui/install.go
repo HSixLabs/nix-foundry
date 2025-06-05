@@ -82,6 +82,7 @@ func InitialModel() Model {
 	}
 }
 
+// Init initializes the TUI model and returns the initial command.
 func (m Model) Init() tea.Cmd {
 	return nil
 }
@@ -187,6 +188,7 @@ func (m Model) handleEnter() Model {
 	return m
 }
 
+// Update handles TUI messages and updates the model state.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -453,6 +455,7 @@ func (m Model) renderNavigationHelp() string {
 	return s
 }
 
+// View renders the TUI interface and returns the display string.
 func (m Model) View() string {
 	s := "\n"
 
