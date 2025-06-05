@@ -484,13 +484,13 @@ getPackageName returns the platform-specific package name for a display name.
 func getPackageName(displayName string) string {
 	switch {
 	case strings.HasPrefix(displayName, "Python"):
-		return "python311"
+		return "python3"
 	case strings.HasPrefix(displayName, "Node.js"):
-		return "nodejs_20"
+		return "nodejs"
 	case strings.HasPrefix(displayName, "Go"):
-		return "go_1_22"
+		return "go"
 	case strings.HasPrefix(displayName, "Java"):
-		return "openjdk17"
+		return "openjdk"
 	case strings.HasPrefix(displayName, "C/C++"):
 		return "gcc"
 	case strings.HasPrefix(displayName, "VS Code"):
