@@ -533,6 +533,31 @@ func (i *Installer) unmountNix() {
 		if unmountErr := unmountCmd.Run(); unmountErr != nil {
 			fmt.Printf("Warning: Failed to unmount /nix: %v\n", unmountErr)
 		}
+
+		fmt.Println("Attempting to remove Nix APFS volume...")
+		listCmd := exec.Command("diskutil", "list")
+		listCmd.Stderr = os.Stderr
+		if listOutput, listErr := listCmd.Output(); listErr == nil {
+			lines := strings.Split(string(listOutput), "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "Nix Store") {
+					fields := strings.Fields(line)
+					if len(fields) > 0 {
+						volumeID := fields[len(fields)-1]
+						fmt.Printf("Found Nix volume: %s\n", volumeID)
+						deleteCmd := exec.Command("sudo", "diskutil", "apfs", "deleteVolume", volumeID)
+						deleteCmd.Stdout = os.Stdout
+						deleteCmd.Stderr = os.Stderr
+						if deleteErr := deleteCmd.Run(); deleteErr != nil {
+							fmt.Printf("Warning: Failed to delete Nix volume %s: %v\n", volumeID, deleteErr)
+						} else {
+							fmt.Printf("Successfully deleted Nix volume: %s\n", volumeID)
+						}
+						break
+					}
+				}
+			}
+		}
 	}
 
 	if i.fs.Exists("/bin/umount") {
