@@ -54,7 +54,7 @@ After installation, manage packages through the configuration system:
 nix-foundry config init
 
 # Add packages to configuration
-nix-foundry config set package add nodejs_20
+nix-foundry config set package add nodejs
 
 # Apply configuration to install packages
 nix-foundry config apply

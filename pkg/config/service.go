@@ -6,6 +6,7 @@ applying, and merging of configurations across different scopes (user, team, pro
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -124,7 +125,7 @@ func (s *Service) SaveConfig(config *schema.Config) error {
 /*
 ApplyConfig applies the active configuration to the system. This includes:
 1. Configuring the shell environment if specified in user config
-2. Installing all required packages (core and optional)
+2. Managing packages (installing new ones, removing old ones)
 3. Running any configured scripts
 
 Returns an error if any step of the application process fails.
@@ -141,8 +142,8 @@ func (s *Service) ApplyConfig() error {
 		}
 	}
 
-	if pkgErr := s.installPackages(activeConfig); pkgErr != nil {
-		return fmt.Errorf("failed to install packages: %w", pkgErr)
+	if pkgErr := s.managePackages(activeConfig); pkgErr != nil {
+		return fmt.Errorf("failed to manage packages: %w", pkgErr)
 	}
 
 	if scriptErr := s.runScripts(activeConfig); scriptErr != nil {
@@ -219,31 +220,6 @@ fi
 }
 
 /*
-installPackages installs all packages specified in the configuration.
-It handles both core (required) and optional packages, installing core packages
-first followed by optional ones. Each package is installed using nix-env.
-*/
-func (s *Service) installPackages(config *schema.Config) error {
-	if len(config.Nix.Packages.Core) > 0 {
-		for _, pkg := range config.Nix.Packages.Core {
-			if installErr := s.installPackage(pkg); installErr != nil {
-				return fmt.Errorf("failed to install core package %s: %w", pkg, installErr)
-			}
-		}
-	}
-
-	if len(config.Nix.Packages.Optional) > 0 {
-		for _, pkg := range config.Nix.Packages.Optional {
-			if installErr := s.installPackage(pkg); installErr != nil {
-				return fmt.Errorf("failed to install optional package %s: %w", pkg, installErr)
-			}
-		}
-	}
-
-	return nil
-}
-
-/*
 installPackage installs a single package using nix-env.
 It configures the environment to allow unfree and unsupported system packages,
 and streams the installation output to the user.
@@ -274,6 +250,88 @@ func (s *Service) runScripts(config *schema.Config) error {
 		}
 	}
 	return nil
+}
+
+/*
+managePackages handles the complete package management lifecycle.
+It queries currently installed packages using nix-env -q, compares with the desired
+configuration, and installs/removes packages as needed.
+*/
+func (s *Service) managePackages(config *schema.Config) error {
+	installedPackages, queryErr := s.getInstalledPackages()
+	if queryErr != nil {
+		return fmt.Errorf("failed to query installed packages: %w", queryErr)
+	}
+
+	diff := schema.DiffPackages(installedPackages, config.Nix.Packages)
+
+	if len(diff.ToRemove) > 0 {
+		fmt.Printf("Removing %d packages...\n", len(diff.ToRemove))
+		for _, pkg := range diff.ToRemove {
+			if removeErr := s.removePackage(pkg); removeErr != nil {
+				return fmt.Errorf("failed to remove package %s: %w", pkg, removeErr)
+			}
+		}
+	}
+
+	if len(diff.ToInstall) > 0 {
+		fmt.Printf("Installing %d packages...\n", len(diff.ToInstall))
+		for _, pkg := range diff.ToInstall {
+			if installErr := s.installPackage(pkg); installErr != nil {
+				return fmt.Errorf("failed to install package %s: %w", pkg, installErr)
+			}
+		}
+	}
+
+	if len(diff.ToInstall) == 0 && len(diff.ToRemove) == 0 {
+		fmt.Println("No package changes needed")
+	}
+
+	return nil
+}
+
+/*
+removePackage removes a single package using nix-env.
+It configures the environment and streams the removal output to the user.
+*/
+func (s *Service) removePackage(pkg string) error {
+	fmt.Printf("Removing package: %s\n", pkg)
+	cmd := exec.Command("bash", "-c", fmt.Sprintf(
+		". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && "+
+			"/nix/var/nix/profiles/default/bin/nix-env -e %s",
+		pkg))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+/*
+getInstalledPackages queries nix-env to get a list of currently installed packages.
+Uses JSON output for accurate package name parsing, avoiding issues with compound package names.
+*/
+func (s *Service) getInstalledPackages() ([]string, error) {
+	cmd := exec.Command("bash", "-c",
+		". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && "+
+			"/nix/var/nix/profiles/default/bin/nix-env -q --json")
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query installed packages: %w", err)
+	}
+
+	var packages map[string]map[string]interface{}
+	if jsonErr := json.Unmarshal(output, &packages); jsonErr != nil {
+		return nil, fmt.Errorf("failed to parse package JSON: %w", jsonErr)
+	}
+
+	var packageNames []string
+	for _, pkg := range packages {
+		if pname, ok := pkg["pname"].(string); ok {
+			packageNames = append(packageNames, pname)
+		}
+	}
+
+	return packageNames, nil
 }
 
 /*
