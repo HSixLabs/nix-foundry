@@ -39,8 +39,11 @@ Valid types are UserConfig, TeamConfig, and ProjectConfig.
 type ConfigType string
 
 const (
-	UserConfig    ConfigType = "user"
-	TeamConfig    ConfigType = "team"
+	// UserConfig represents a user-specific configuration type.
+	UserConfig ConfigType = "user"
+	// TeamConfig represents a team-specific configuration type.
+	TeamConfig ConfigType = "team"
+	// ProjectConfig represents a project-specific configuration type.
 	ProjectConfig ConfigType = "project"
 )
 

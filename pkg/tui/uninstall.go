@@ -1,4 +1,3 @@
-// Package tui provides terminal user interface components.
 package tui
 
 import (
@@ -7,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// UninstallModel represents the TUI model for uninstallation.
+// UninstallModel represents the TUI model for the uninstall process.
 type UninstallModel struct {
 	cursor    int
 	step      int
@@ -16,17 +15,19 @@ type UninstallModel struct {
 	quitting  bool
 }
 
-// InitialUninstallModel creates and returns the initial uninstallation model.
+// InitialUninstallModel creates a new uninstall TUI model with default values.
 func InitialUninstallModel() UninstallModel {
 	return UninstallModel{
 		step: 0,
 	}
 }
 
+// Init initializes the uninstall TUI model.
 func (m UninstallModel) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles messages and updates the uninstall TUI model state.
 func (m UninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -64,6 +65,7 @@ func (m UninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View renders the uninstall TUI interface.
 func (m UninstallModel) View() string {
 	s := "\n"
 
@@ -92,9 +94,14 @@ func (m UninstallModel) View() string {
 		} else {
 			s += "• Nix Foundry configuration and files\n"
 			s += "• Shell configuration for Nix Foundry\n"
-			s += "• Nix package manager\n"
+			s += "• Nix package manager and daemon services\n"
 			s += "• All packages installed through Nix\n"
-			s += ColorYellow + "\nWarning: This will remove all packages installed through Nix." + ColorReset + "\n"
+			s += "• Nix store directory (/nix)\n"
+			s += "• User Nix profiles and channels\n"
+			s += "• System and user shell configurations\n"
+			s += "• Nix-related cache and configuration files\n"
+			s += ColorYellow + "\nWarning: This will completely remove Nix and all associated data." + ColorReset + "\n"
+			s += ColorRed + "This action cannot be undone!" + ColorReset + "\n"
 		}
 		s += "\n"
 		s += ColorCyan + "Are you sure you want to proceed?" + ColorReset + "\n\n"
@@ -117,7 +124,7 @@ func (m UninstallModel) View() string {
 	return s
 }
 
-// RunUninstallTUI runs the uninstallation TUI and returns the user's choices.
+// RunUninstallTUI runs the uninstall TUI and returns user choices.
 func RunUninstallTUI() (bool, bool, error) {
 	p := tea.NewProgram(InitialUninstallModel())
 	m, err := p.Run()

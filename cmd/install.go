@@ -270,7 +270,7 @@ runInstall handles the main installation process for Nix Foundry. It:
 
 Returns an error if any critical step fails.
 */
-func runInstall(command *cobra.Command, args []string) error {
+func runInstall(_ *cobra.Command, _ []string) error {
 	if multiUser && os.Geteuid() != 0 {
 		return fmt.Errorf("multi-user installation requires root privileges. Please run with sudo")
 	}
@@ -435,7 +435,7 @@ fi
 	if openErr != nil {
 		return fmt.Errorf("failed to open rc file: %w", openErr)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, writeErr := f.WriteString(content); writeErr != nil {
 		return fmt.Errorf("failed to update rc file: %w", writeErr)
