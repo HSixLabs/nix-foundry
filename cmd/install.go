@@ -320,6 +320,19 @@ func runInstall(_ *cobra.Command, _ []string) error {
 	fmt.Println("🎉 INSTALLATION COMPLETE!")
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
+	
+	if platform.GetNixSystem() == "aarch64-darwin" || platform.GetNixSystem() == "x86_64-darwin" {
+		fmt.Println("⚠️  IMPORTANT FOR macOS USERS:")
+		fmt.Println("To install GUI applications, you need to:")
+		fmt.Println("1. Open System Preferences → Privacy & Security → Full Disk Access")
+		fmt.Println("2. Click the '+' button and add 'nix'")
+		fmt.Println("3. This allows Nix to create the necessary directories for GUI apps")
+		fmt.Println()
+		fmt.Println("Without this permission, GUI apps will fail with 'Operation not permitted' errors.")
+		fmt.Println(strings.Repeat("-", 60))
+		fmt.Println()
+	}
+	
 	fmt.Println("Next steps:")
 	fmt.Println("1. Close and reopen your terminal (or run: source ~/.zshrc)")
 	fmt.Println("2. Install your selected packages by running:")
