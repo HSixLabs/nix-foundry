@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/shawnkhoffman/nix-foundry/pkg/filesystem"
@@ -232,7 +233,22 @@ func (s *Service) installPackage(pkg string) error {
 		pkg))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	
+	err := cmd.Run()
+	if err != nil && s.isPermissionError(err) {
+		fmt.Println("\n⚠️  INSTALLATION FAILED - PERMISSION DENIED!")
+		fmt.Println("This is likely because Nix doesn't have Full Disk Access permission on macOS.")
+		fmt.Println("To fix this:")
+		fmt.Println("1. Open System Preferences → Privacy & Security → Full Disk Access")
+		fmt.Println("2. Click the '+' button and add 'nix'")
+		fmt.Println("3. Re-run 'nix-foundry config apply' after granting permission")
+		fmt.Println()
+	} else if err == nil && runtime.GOOS == "darwin" {
+		if symlinkErr := s.symlinkMacOSApps(pkg); symlinkErr != nil {
+			fmt.Printf("Warning: Failed to symlink %s to Applications: %v\n", pkg, symlinkErr)
+		}
+	}
+	return err
 }
 
 /*
@@ -278,7 +294,9 @@ func (s *Service) managePackages(config *schema.Config) error {
 		fmt.Printf("Installing %d packages...\n", len(diff.ToInstall))
 		for _, pkg := range diff.ToInstall {
 			if installErr := s.installPackage(pkg); installErr != nil {
-				return fmt.Errorf("failed to install package %s: %w", pkg, installErr)
+				s.handlePackageInstallationFailure(pkg, installErr)
+				fmt.Printf("⚠️  Skipping %s due to installation failure\n", pkg)
+				continue
 			}
 		}
 	}
@@ -288,6 +306,31 @@ func (s *Service) managePackages(config *schema.Config) error {
 	}
 
 	return nil
+}
+
+/*
+handlePackageInstallationFailure provides helpful error messages and suggestions
+for common package installation failures, without hard-coding package-specific logic.
+*/
+func (s *Service) handlePackageInstallationFailure(pkg string, err error) {
+	errorStr := err.Error()
+
+	fmt.Printf("❌ Failed to install %s: %v\n", pkg, err)
+
+	if strings.Contains(errorStr, "Operation not permitted") {
+		fmt.Println("💡 Suggestions:")
+		fmt.Println("   • This package may have build issues on your system")
+		fmt.Println("   • Consider installing manually or using an alternative package manager")
+		fmt.Println("   • Check if the package is available through other sources")
+	}
+
+	if strings.Contains(errorStr, "unfree license") {
+		fmt.Println("💡 Suggestion: This package requires unfree license acceptance")
+		fmt.Println("   • The installer already sets NIXPKGS_ALLOW_UNFREE=1")
+		fmt.Println("   • You may need to accept the license manually")
+	}
+
+	fmt.Println()
 }
 
 /*
@@ -302,7 +345,14 @@ func (s *Service) removePackage(pkg string) error {
 		pkg))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	
+	err := cmd.Run()
+	if err == nil && runtime.GOOS == "darwin" {
+		if cleanupErr := s.cleanupMacOSAppSymlinks(pkg); cleanupErr != nil {
+			fmt.Printf("Warning: Failed to cleanup symlinks for %s: %v\n", pkg, cleanupErr)
+		}
+	}
+	return err
 }
 
 /*
@@ -675,5 +725,123 @@ func (s *Service) InitConfigWithType(configType schema.ConfigType, name string) 
 		return fmt.Errorf("failed to write config: %w", writeErr)
 	}
 
+	return nil
+}
+
+/*
+isPermissionError checks if an error is likely caused by macOS permission issues.
+*/
+func (s *Service) isPermissionError(err error) bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+
+	errorMsg := strings.ToLower(err.Error())
+	return strings.Contains(errorMsg, "operation not permitted") ||
+		strings.Contains(errorMsg, "permission denied") ||
+		strings.Contains(errorMsg, "mkdir: /nix/store") ||
+		strings.Contains(errorMsg, "cannot create directory")
+}
+
+/*
+symlinkMacOSApps automatically creates symlinks for GUI applications in /Applications
+so they appear in Launchpad and Finder. This searches for .app bundles in the
+individual package store paths and symlinks them to the system Applications folder.
+*/
+func (s *Service) symlinkMacOSApps(pkg string) error {
+	packageName := pkg
+	if strings.Contains(pkg, ".") {
+		parts := strings.Split(pkg, ".")
+		packageName = parts[len(parts)-1]
+	}
+	
+	cmd := exec.Command("find", "/nix/store", "-name", "*"+packageName+"*", "-type", "d", "-maxdepth", "1")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	
+	storePaths := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, storePath := range storePaths {
+		if storePath == "" {
+			continue
+		}
+		
+		err := filepath.Walk(storePath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil
+			}
+			
+			if info.IsDir() && strings.HasSuffix(info.Name(), ".app") {
+				appName := info.Name()
+				targetPath := filepath.Join("/Applications", appName)
+				
+				if _, statErr := os.Lstat(targetPath); statErr == nil {
+					return nil
+				}
+				
+				if symlinkErr := os.Symlink(path, targetPath); symlinkErr != nil {
+					fmt.Printf("\n📱 GUI App Installed: %s\n", appName)
+					fmt.Printf("   To make it visible in Launchpad, run:\n")
+					fmt.Printf("   sudo ln -sf \"%s\" \"%s\"\n", path, targetPath)
+					fmt.Printf("   Or manually drag it from Finder to Applications folder\n\n")
+				} else {
+					fmt.Printf("✨ Symlinked %s to Applications for Launchpad visibility\n", appName)
+				}
+			}
+			return nil
+		})
+		
+		if err != nil {
+			continue
+		}
+	}
+	
+	return nil
+}
+
+/*
+cleanupMacOSAppSymlinks cleans up any symlinks for GUI applications after removal on macOS.
+It searches for symlinks in /Applications that point to Nix store paths containing the package name.
+*/
+func (s *Service) cleanupMacOSAppSymlinks(pkg string) error {
+	packageName := pkg
+	if strings.Contains(pkg, ".") {
+		parts := strings.Split(pkg, ".")
+		packageName = parts[len(parts)-1]
+	}
+	
+	applicationsDir := "/Applications"
+	entries, err := os.ReadDir(applicationsDir)
+	if err != nil {
+		return nil
+	}
+	
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".app") {
+			continue
+		}
+		
+		entryPath := filepath.Join(applicationsDir, entry.Name())
+		
+		linkInfo, err := os.Lstat(entryPath)
+		if err != nil || linkInfo.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		
+		target, err := os.Readlink(entryPath)
+		if err != nil {
+			continue
+		}
+		
+		if strings.Contains(target, "/nix/store/") && strings.Contains(target, packageName) {
+			if removeErr := os.Remove(entryPath); removeErr != nil {
+				fmt.Printf("Warning: Failed to remove symlink for %s: %v\n", entry.Name(), removeErr)
+			} else {
+				fmt.Printf("🗑️  Removed symlink for %s\n", entry.Name())
+			}
+		}
+	}
+	
 	return nil
 }
