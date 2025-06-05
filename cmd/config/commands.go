@@ -49,7 +49,7 @@ var InitCmd = &cobra.Command{
 	Short: "Initialize a new configuration",
 	Long: `Initialize a new configuration.
 This command will create a new configuration file of the specified type.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		configSvc := config.GetConfigService()
 
 		if configType == "user" {
@@ -111,7 +111,7 @@ It retrieves and applies the active configuration, which includes:
 3. Script execution
 Returns an error if any part of the application process fails.
 */
-func runApply(cmd *cobra.Command, args []string) error {
+func runApply(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
 
 	if err := configSvc.ApplyConfig(); err != nil {
@@ -129,7 +129,7 @@ It shows each configuration's:
 - Inheritance relationships (if any)
 Returns an error if the configuration listing process fails.
 */
-func runList(cmd *cobra.Command, args []string) error {
+func runList(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
 
 	configs, err := configSvc.ListConfigs()
@@ -158,7 +158,7 @@ If no specific configuration is requested, it shows the active configuration.
 Otherwise, it shows the requested configuration by name and type.
 Returns an error if the configuration cannot be found or displayed.
 */
-func runShow(cmd *cobra.Command, args []string) error {
+func runShow(_ *cobra.Command, args []string) error {
 	configSvc := config.GetConfigService()
 
 	if len(args) == 0 {

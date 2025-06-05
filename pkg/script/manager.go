@@ -90,7 +90,7 @@ func (m *Manager) RunScript(name string, config *schema.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	scriptPath := filepath.Join(tmpDir, script.Name)
 	if err := m.fs.WriteFile(scriptPath, []byte(script.Commands), 0755); err != nil {

@@ -22,7 +22,7 @@ var packageCmd = &cobra.Command{
 	Short: "Manage Nix packages in configuration",
 	Long: `Manage Nix packages in configuration.
 This command provides subcommands for managing Nix packages in your configuration.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("please specify a subcommand")
 	},
 }

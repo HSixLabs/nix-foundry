@@ -59,7 +59,7 @@ The function will:
 
 Returns an error if any step fails.
 */
-func runScript(cmd *cobra.Command, args []string) error {
+func runScript(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
 
 	config, err := configSvc.GetActiveConfig()

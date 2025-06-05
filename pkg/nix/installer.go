@@ -150,7 +150,7 @@ func (i *Installer) Install(multiUser bool) error {
 	if tmpDirErr != nil {
 		return fmt.Errorf("failed to create temp directory: %w", tmpDirErr)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	scriptPath := filepath.Join(tmpDir, "install.sh")
 	fmt.Println("Downloading Nix...")
@@ -343,8 +343,7 @@ func (i *Installer) stopDaemonServices() {
 
 	fmt.Println("Killing any remaining Nix processes...")
 	killCmd := exec.Command("sudo", "pkill", "-f", "nix-daemon")
-	if killErr := killCmd.Run(); killErr != nil {
-	}
+	_ = killCmd.Run()
 }
 
 /*

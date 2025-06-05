@@ -80,7 +80,7 @@ func newScriptRunCmd() *cobra.Command {
 	return cmd
 }
 
-func runScriptSet(cmd *cobra.Command, args []string) error {
+func runScriptSet(_ *cobra.Command, _ []string) error {
 	configPath, err := schema.GetConfigPath()
 	if err != nil {
 		return fmt.Errorf("failed to get config path: %w", err)
@@ -135,7 +135,8 @@ func runScriptSet(cmd *cobra.Command, args []string) error {
 
 	var setScriptStyle func(*yaml.Node)
 	setScriptStyle = func(n *yaml.Node) {
-		if n.Kind == yaml.MappingNode {
+		switch n.Kind {
+		case yaml.MappingNode:
 			for i := 0; i < len(n.Content); i += 2 {
 				key := n.Content[i]
 				value := n.Content[i+1]
@@ -144,7 +145,7 @@ func runScriptSet(cmd *cobra.Command, args []string) error {
 				}
 				setScriptStyle(value)
 			}
-		} else if n.Kind == yaml.SequenceNode {
+		case yaml.SequenceNode:
 			for _, item := range n.Content {
 				setScriptStyle(item)
 			}
@@ -167,7 +168,7 @@ func runScriptSet(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runScriptList(cmd *cobra.Command, args []string) error {
+func runScriptList(_ *cobra.Command, _ []string) error {
 	configPath, err := schema.GetConfigPath()
 	if err != nil {
 		return fmt.Errorf("failed to get config path: %w", err)
@@ -200,7 +201,7 @@ func runScriptList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runScriptRun(cmd *cobra.Command, args []string) error {
+func runScriptRun(_ *cobra.Command, args []string) error {
 	scriptName := args[0]
 
 	configPath, err := schema.GetConfigPath()
@@ -234,7 +235,7 @@ func runScriptRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	scriptPath := filepath.Join(tmpDir, "script.sh")
 	if writeErr := os.WriteFile(scriptPath, []byte(script.Commands), 0755); writeErr != nil {
