@@ -278,7 +278,9 @@ func (s *Service) managePackages(config *schema.Config) error {
 		fmt.Printf("Installing %d packages...\n", len(diff.ToInstall))
 		for _, pkg := range diff.ToInstall {
 			if installErr := s.installPackage(pkg); installErr != nil {
-				return fmt.Errorf("failed to install package %s: %w", pkg, installErr)
+				s.handlePackageInstallationFailure(pkg, installErr)
+				fmt.Printf("⚠️  Skipping %s due to installation failure\n", pkg)
+				continue
 			}
 		}
 	}
@@ -288,6 +290,31 @@ func (s *Service) managePackages(config *schema.Config) error {
 	}
 
 	return nil
+}
+
+/*
+handlePackageInstallationFailure provides helpful error messages and suggestions
+for common package installation failures, without hard-coding package-specific logic.
+*/
+func (s *Service) handlePackageInstallationFailure(pkg string, err error) {
+	errorStr := err.Error()
+
+	fmt.Printf("❌ Failed to install %s: %v\n", pkg, err)
+
+	if strings.Contains(errorStr, "Operation not permitted") {
+		fmt.Println("💡 Suggestions:")
+		fmt.Println("   • This package may have build issues on your system")
+		fmt.Println("   • Consider installing manually or using an alternative package manager")
+		fmt.Println("   • Check if the package is available through other sources")
+	}
+
+	if strings.Contains(errorStr, "unfree license") {
+		fmt.Println("💡 Suggestion: This package requires unfree license acceptance")
+		fmt.Println("   • The installer already sets NIXPKGS_ALLOW_UNFREE=1")
+		fmt.Println("   • You may need to accept the license manually")
+	}
+
+	fmt.Println()
 }
 
 /*
