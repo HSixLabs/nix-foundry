@@ -301,9 +301,9 @@ func (s *Service) managePackages(config *schema.Config) error {
 		}
 	}
 
-	if len(diff.ToRemove) > 0 {
-		fmt.Println("Running garbage collection to clean up unused packages...")
-		if gcErr := s.runGarbageCollection(); gcErr != nil {
+	if len(diff.ToRemove) > 0 && len(diff.ToInstall) == 0 {
+		fmt.Println("Running garbage collection to clean up removed packages...")
+		if gcErr := s.runTargetedGarbageCollection(diff.ToRemove); gcErr != nil {
 			fmt.Printf("Warning: Garbage collection failed: %v\n", gcErr)
 		}
 	}
@@ -363,10 +363,12 @@ func (s *Service) removePackage(pkg string) error {
 }
 
 /*
-runGarbageCollection runs nix-collect-garbage to remove unused packages from the Nix store.
-This helps clean up store paths that are no longer referenced after package removal.
+runTargetedGarbageCollection runs garbage collection only when we're purely removing packages.
+This avoids cleaning up build artifacts for packages we just installed in the same operation.
 */
-func (s *Service) runGarbageCollection() error {
+func (s *Service) runTargetedGarbageCollection(removedPackages []string) error {
+	fmt.Printf("  Cleaning up store paths for: %s\n", strings.Join(removedPackages, ", "))
+	
 	cmd := exec.Command("bash", "-c",
 		". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && "+
 			"/nix/var/nix/profiles/default/bin/nix-collect-garbage")
