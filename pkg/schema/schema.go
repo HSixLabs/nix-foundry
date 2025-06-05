@@ -221,3 +221,47 @@ func GetConfigPath() (string, error) {
 
 	return filepath.Join(homeDir, ".config", "nix-foundry", "config.yaml"), nil
 }
+
+/*
+PackageDiff represents the difference between two package configurations.
+*/
+type PackageDiff struct {
+	ToInstall []string
+	ToRemove  []string
+}
+
+/*
+DiffPackages compares currently installed packages with desired packages and returns the differences.
+installedPackages should be the result of querying nix-env -q.
+desiredPackages is the Packages struct from the configuration.
+*/
+func DiffPackages(installedPackages []string, desiredPackages Packages) PackageDiff {
+	var diff PackageDiff
+
+	installedMap := make(map[string]bool)
+	for _, pkg := range installedPackages {
+		installedMap[pkg] = true
+	}
+
+	desiredMap := make(map[string]bool)
+	for _, pkg := range desiredPackages.Core {
+		desiredMap[pkg] = true
+	}
+	for _, pkg := range desiredPackages.Optional {
+		desiredMap[pkg] = true
+	}
+
+	for pkg := range desiredMap {
+		if !installedMap[pkg] {
+			diff.ToInstall = append(diff.ToInstall, pkg)
+		}
+	}
+
+	for pkg := range installedMap {
+		if !desiredMap[pkg] {
+			diff.ToRemove = append(diff.ToRemove, pkg)
+		}
+	}
+
+	return diff
+}
