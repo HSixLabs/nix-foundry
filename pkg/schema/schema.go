@@ -8,6 +8,7 @@ package schema
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/shawnkhoffman/nix-foundry/pkg/platform"
@@ -235,8 +236,8 @@ type PackageDiff struct {
 
 /*
 DiffPackages compares currently installed packages with desired packages and returns the differences.
-installedPackages should be the result of querying nix-env -q.
-desiredPackages is the Packages struct from the configuration.
+installedPackages should be the result of querying nix-env -q (using pname values).
+desiredPackages is the Packages struct from the configuration (using nixpkgs attribute names).
 */
 func DiffPackages(installedPackages []string, desiredPackages Packages) PackageDiff {
 	var diff PackageDiff
@@ -247,24 +248,58 @@ func DiffPackages(installedPackages []string, desiredPackages Packages) PackageD
 	}
 
 	desiredMap := make(map[string]bool)
+	desiredToPnameMap := make(map[string]string)
+	
+	// Map config package names to expected pnames
 	for _, pkg := range desiredPackages.Core {
-		desiredMap[pkg] = true
+		pname := mapAttributeToPname(pkg)
+		desiredMap[pname] = true
+		desiredToPnameMap[pname] = pkg
 	}
 	for _, pkg := range desiredPackages.Optional {
-		desiredMap[pkg] = true
+		pname := mapAttributeToPname(pkg)
+		desiredMap[pname] = true
+		desiredToPnameMap[pname] = pkg
 	}
 
-	for pkg := range desiredMap {
-		if !installedMap[pkg] {
-			diff.ToInstall = append(diff.ToInstall, pkg)
+	// Check what needs to be installed (in config but not installed)
+	for pname := range desiredMap {
+		if !installedMap[pname] {
+			// Return the original config attribute name for installation
+			diff.ToInstall = append(diff.ToInstall, desiredToPnameMap[pname])
 		}
 	}
 
-	for pkg := range installedMap {
-		if !desiredMap[pkg] {
-			diff.ToRemove = append(diff.ToRemove, pkg)
+	// Check what needs to be removed (installed but not in config)
+	for pname := range installedMap {
+		if !desiredMap[pname] {
+			// Return the pname for removal (matches what nix-env expects)
+			diff.ToRemove = append(diff.ToRemove, pname)
 		}
 	}
 
 	return diff
+}
+
+/*
+mapAttributeToPname converts nixpkgs attribute names to expected package names (pname).
+This handles the mapping between config format (jetbrains.webstorm) and installed format (webstorm).
+*/
+func mapAttributeToPname(attribute string) string {
+	// Handle jetbrains packages
+	if strings.HasPrefix(attribute, "jetbrains.") {
+		return strings.TrimPrefix(attribute, "jetbrains.")
+	}
+	
+	// Handle other common attribute mappings
+	switch attribute {
+	case "gcc-wrapper":
+		return "gcc-wrapper"
+	case "meslo-lgs-nf":
+		return "meslo-lgs-nf-unstable"
+	case "zsh-powerlevel10k":
+		return "powerlevel10k"
+	default:
+		return attribute
+	}
 }
