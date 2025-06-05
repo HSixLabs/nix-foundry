@@ -301,6 +301,13 @@ func (s *Service) managePackages(config *schema.Config) error {
 		}
 	}
 
+	if len(diff.ToRemove) > 0 {
+		fmt.Println("Running garbage collection to clean up unused packages...")
+		if gcErr := s.runGarbageCollection(); gcErr != nil {
+			fmt.Printf("Warning: Garbage collection failed: %v\n", gcErr)
+		}
+	}
+
 	if len(diff.ToInstall) == 0 && len(diff.ToRemove) == 0 {
 		fmt.Println("No package changes needed")
 	}
@@ -348,11 +355,38 @@ func (s *Service) removePackage(pkg string) error {
 	
 	err := cmd.Run()
 	if err == nil && runtime.GOOS == "darwin" {
-		if cleanupErr := s.cleanupMacOSAppSymlinks(pkg); cleanupErr != nil {
+		if cleanupErr := s.CleanupMacOSAppSymlinks(pkg); cleanupErr != nil {
 			fmt.Printf("Warning: Failed to cleanup symlinks for %s: %v\n", pkg, cleanupErr)
 		}
 	}
 	return err
+}
+
+/*
+runGarbageCollection runs nix-collect-garbage to remove unused packages from the Nix store.
+This helps clean up store paths that are no longer referenced after package removal.
+*/
+func (s *Service) runGarbageCollection() error {
+	cmd := exec.Command("bash", "-c",
+		". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && "+
+			"/nix/var/nix/profiles/default/bin/nix-collect-garbage")
+	
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("garbage collection failed: %s: %w", output, err)
+	}
+	
+	outputStr := string(output)
+	if strings.Contains(outputStr, "freed") {
+		lines := strings.Split(outputStr, "\n")
+		for _, line := range lines {
+			if strings.Contains(line, "freed") || strings.Contains(line, "deleting") {
+				fmt.Printf("  %s\n", strings.TrimSpace(line))
+			}
+		}
+	}
+	
+	return nil
 }
 
 /*
@@ -802,13 +836,13 @@ func (s *Service) symlinkMacOSApps(pkg string) error {
 
 /*
 cleanupMacOSAppSymlinks cleans up any symlinks for GUI applications after removal on macOS.
-It searches for symlinks in /Applications that point to Nix store paths containing the package name.
+Instead of relying on package name matching (which fails for packages like 'vscode' -> 'Visual Studio Code.app'),
+this implementation finds the actual Nix store path for the removed package and removes all symlinks pointing to it.
 */
-func (s *Service) cleanupMacOSAppSymlinks(pkg string) error {
-	packageName := pkg
-	if strings.Contains(pkg, ".") {
-		parts := strings.Split(pkg, ".")
-		packageName = parts[len(parts)-1]
+func (s *Service) CleanupMacOSAppSymlinks(pkg string) error {
+	storePaths, err := s.getNixStorePathsForPackage(pkg)
+	if err != nil {
+		return s.CleanupOrphanedNixSymlinks()
 	}
 	
 	applicationsDir := "/Applications"
@@ -834,11 +868,86 @@ func (s *Service) cleanupMacOSAppSymlinks(pkg string) error {
 			continue
 		}
 		
-		if strings.Contains(target, "/nix/store/") && strings.Contains(target, packageName) {
+		for _, storePath := range storePaths {
+			if strings.HasPrefix(target, storePath) {
+				if removeErr := os.Remove(entryPath); removeErr != nil {
+					fmt.Printf("Warning: Failed to remove symlink for %s: %v\n", entry.Name(), removeErr)
+				} else {
+					fmt.Printf("🗑️  Removed symlink for %s\n", entry.Name())
+				}
+				break
+			}
+		}
+	}
+	
+	return nil
+}
+
+/*
+getNixStorePathsForPackage gets the Nix store paths for a given package name.
+This is used to identify which symlinks need to be cleaned up.
+*/
+func (s *Service) getNixStorePathsForPackage(pkg string) ([]string, error) {
+	packageName := pkg
+	if strings.Contains(pkg, ".") {
+		parts := strings.Split(pkg, ".")
+		packageName = parts[len(parts)-1]
+	}
+	
+	cmd := exec.Command("find", "/nix/store", "-name", "*"+packageName+"*", "-type", "d", "-maxdepth", "1")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	
+	storePaths := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var validPaths []string
+	for _, path := range storePaths {
+		if path != "" {
+			validPaths = append(validPaths, path)
+		}
+	}
+	
+	return validPaths, nil
+}
+
+/*
+cleanupOrphanedNixSymlinks removes all symlinks in /Applications that point to non-existent Nix store paths.
+This is a fallback cleanup method when we can't determine specific package store paths.
+*/
+func (s *Service) CleanupOrphanedNixSymlinks() error {
+	applicationsDir := "/Applications"
+	entries, err := os.ReadDir(applicationsDir)
+	if err != nil {
+		return nil
+	}
+	
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".app") {
+			continue
+		}
+		
+		entryPath := filepath.Join(applicationsDir, entry.Name())
+		
+		linkInfo, err := os.Lstat(entryPath)
+		if err != nil || linkInfo.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
+		
+		target, err := os.Readlink(entryPath)
+		if err != nil {
+			continue
+		}
+		
+		if !strings.Contains(target, "/nix/store/") {
+			continue
+		}
+		
+		if _, statErr := os.Stat(target); os.IsNotExist(statErr) {
 			if removeErr := os.Remove(entryPath); removeErr != nil {
-				fmt.Printf("Warning: Failed to remove symlink for %s: %v\n", entry.Name(), removeErr)
+				fmt.Printf("Warning: Failed to remove orphaned symlink for %s: %v\n", entry.Name(), removeErr)
 			} else {
-				fmt.Printf("🗑️  Removed symlink for %s\n", entry.Name())
+				fmt.Printf("🗑️  Removed orphaned symlink for %s\n", entry.Name())
 			}
 		}
 	}
