@@ -225,40 +225,6 @@ func configureNixSettings(uid, gid int) error {
 }
 
 /*
-installSelectedPackages installs the selected packages using nix-env.
-*/
-func installSelectedPackages(packages []string) error {
-	fmt.Println("Installing selected packages...")
-
-	for _, pkg := range packages {
-		fmt.Printf("Installing %s...\n", pkg)
-
-		nixEnvCmd := fmt.Sprintf(". %s && NIXPKGS_ALLOW_UNFREE=1 NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 /nix/var/nix/profiles/default/bin/nix-env -iA nixpkgs.%s -Q",
-			"/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh",
-			pkg)
-
-		var cmd *exec.Cmd
-		if platform.IsRunningAsSudo() && platform.IsWSL() {
-			sudoUser := os.Getenv("SUDO_USER")
-			if sudoUser != "" {
-				cmd = exec.Command("su", "-", sudoUser, "-c", nixEnvCmd)
-			} else {
-				cmd = exec.Command("bash", "-c", nixEnvCmd)
-			}
-		} else {
-			cmd = exec.Command("bash", "-c", nixEnvCmd)
-		}
-
-		if output, execErr := cmd.CombinedOutput(); execErr != nil {
-			return fmt.Errorf("failed to install package %s: %s: %w", pkg, output, execErr)
-		}
-	}
-
-	fmt.Println("✨ Selected packages installed successfully")
-	return nil
-}
-
-/*
 runInstall handles the main installation process for Nix Foundry. It:
 1. Verifies proper permissions for multi-user installation
 2. Runs the installation TUI to gather user preferences
@@ -332,8 +298,6 @@ func runInstall(_ *cobra.Command, _ []string) error {
 
 	fmt.Printf("✨ Nix installed successfully in %s mode\n",
 		map[bool]string{true: "multi-user", false: "single-user"}[multiUser])
-	fmt.Println("\nTo complete the setup and install your selected packages, run:")
-	fmt.Println("  nix-foundry config apply")
 
 	if channelErr := initializeNixChannels(); channelErr != nil {
 		return channelErr
@@ -348,7 +312,18 @@ func runInstall(_ *cobra.Command, _ []string) error {
 		return configErr
 	}
 
-	return installSelectedPackages(packages)
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Println("🎉 INSTALLATION COMPLETE!")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("1. Close and reopen your terminal (or run: source ~/.zshrc)")
+	fmt.Println("2. Install your selected packages by running:")
+	fmt.Println("   nix-foundry config apply")
+	fmt.Println()
+	fmt.Println("Note: Package installation runs in user context to avoid permission issues.")
+
+	return nil
 }
 
 /*
