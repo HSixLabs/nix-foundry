@@ -1,4 +1,3 @@
-// Package tui provides terminal user interface components.
 package tui
 
 import (
@@ -7,7 +6,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// UninstallModel represents the TUI model for uninstallation.
 type UninstallModel struct {
 	cursor    int
 	step      int
@@ -16,7 +14,6 @@ type UninstallModel struct {
 	quitting  bool
 }
 
-// InitialUninstallModel creates and returns the initial uninstallation model.
 func InitialUninstallModel() UninstallModel {
 	return UninstallModel{
 		step: 0,
@@ -92,9 +89,14 @@ func (m UninstallModel) View() string {
 		} else {
 			s += "• Nix Foundry configuration and files\n"
 			s += "• Shell configuration for Nix Foundry\n"
-			s += "• Nix package manager\n"
+			s += "• Nix package manager and daemon services\n"
 			s += "• All packages installed through Nix\n"
-			s += ColorYellow + "\nWarning: This will remove all packages installed through Nix." + ColorReset + "\n"
+			s += "• Nix store directory (/nix)\n"
+			s += "• User Nix profiles and channels\n"
+			s += "• System and user shell configurations\n"
+			s += "• Nix-related cache and configuration files\n"
+			s += ColorYellow + "\nWarning: This will completely remove Nix and all associated data." + ColorReset + "\n"
+			s += ColorRed + "This action cannot be undone!" + ColorReset + "\n"
 		}
 		s += "\n"
 		s += ColorCyan + "Are you sure you want to proceed?" + ColorReset + "\n\n"
@@ -117,7 +119,6 @@ func (m UninstallModel) View() string {
 	return s
 }
 
-// RunUninstallTUI runs the uninstallation TUI and returns the user's choices.
 func RunUninstallTUI() (bool, bool, error) {
 	p := tea.NewProgram(InitialUninstallModel())
 	m, err := p.Run()

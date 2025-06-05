@@ -191,12 +191,37 @@ func (i *Installer) Install(multiUser bool) error {
 }
 
 /*
+performGarbageCollection runs Nix garbage collection to clean up unreferenced store paths.
+*/
+func (i *Installer) performGarbageCollection() {
+	fmt.Println("Running Nix garbage collection...")
+
+	gcCmd := exec.Command("bash", "-c", ". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-collect-garbage -d")
+	gcCmd.Stdout = os.Stdout
+	gcCmd.Stderr = os.Stderr
+	if gcErr := gcCmd.Run(); gcErr != nil {
+		fmt.Printf("Warning: Multi-user garbage collection failed: %v\n", gcErr)
+
+		if homeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
+			profilePath := filepath.Join(homeDir, ".nix-profile/etc/profile.d/nix.sh")
+			if i.fs.Exists(profilePath) {
+				singleGcCmd := exec.Command("bash", "-c", fmt.Sprintf(". %s && nix-collect-garbage -d", profilePath))
+				singleGcCmd.Stdout = os.Stdout
+				singleGcCmd.Stderr = os.Stderr
+				if singleGcErr := singleGcCmd.Run(); singleGcErr != nil {
+					fmt.Printf("Warning: Single-user garbage collection failed: %v\n", singleGcErr)
+				}
+			}
+		}
+	}
+}
+
+/*
 uninstallPackages uninstalls all packages from both multi-user and single-user profiles.
 */
 func (i *Installer) uninstallPackages() {
 	fmt.Println("Uninstalling all Nix packages...")
 
-	// Multi-user profile
 	fmt.Println("Checking multi-user profile...")
 	listCmd := exec.Command("bash", "-c", ". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && nix-env -q")
 	listCmd.Stdout = os.Stdout
@@ -208,7 +233,6 @@ func (i *Installer) uninstallPackages() {
 		fmt.Printf("Note: No packages found in multi-user profile or profile not accessible\n")
 	}
 
-	// Single-user profile
 	homeDir, homeDirErr := os.UserHomeDir()
 	if homeDirErr == nil {
 		fmt.Println("Checking single-user profile...")
@@ -223,6 +247,8 @@ func (i *Installer) uninstallPackages() {
 			fmt.Printf("Note: No packages found in single-user profile or profile not accessible\n")
 		}
 	}
+
+	i.performGarbageCollection()
 }
 
 /*
@@ -246,19 +272,51 @@ func (i *Installer) uninstallPackagesFromOutput(output, profilePath string) {
 
 /*
 stopDaemonServices stops Nix daemon services in multi-user mode.
+This includes systemd services on Linux and launchd services on macOS.
 */
 func (i *Installer) stopDaemonServices() {
+	fmt.Println("Stopping Nix daemon services...")
+
 	multiUser, multiUserErr := i.IsMultiUser()
 	if multiUserErr == nil && multiUser {
-		fmt.Println("Stopping Nix daemon service...")
-
 		if i.fs.Exists("/etc/systemd/system/nix-daemon.service") {
-			fmt.Println("Stopping systemd service...")
+			fmt.Println("Stopping and disabling systemd service...")
+
 			stopCmd := exec.Command("sudo", "systemctl", "stop", "nix-daemon.service")
 			stopCmd.Stdout = os.Stdout
 			stopCmd.Stderr = os.Stderr
 			if stopErr := stopCmd.Run(); stopErr != nil {
 				fmt.Printf("Warning: Failed to stop systemd service: %v\n", stopErr)
+			}
+
+			disableCmd := exec.Command("sudo", "systemctl", "disable", "nix-daemon.service")
+			disableCmd.Stdout = os.Stdout
+			disableCmd.Stderr = os.Stderr
+			if disableErr := disableCmd.Run(); disableErr != nil {
+				fmt.Printf("Warning: Failed to disable systemd service: %v\n", disableErr)
+			}
+
+			if i.fs.Exists("/etc/systemd/system/nix-daemon.socket") {
+				socketCmd := exec.Command("sudo", "systemctl", "stop", "nix-daemon.socket")
+				socketCmd.Stdout = os.Stdout
+				socketCmd.Stderr = os.Stderr
+				if socketErr := socketCmd.Run(); socketErr != nil {
+					fmt.Printf("Warning: Failed to stop socket: %v\n", socketErr)
+				}
+
+				disableSocketCmd := exec.Command("sudo", "systemctl", "disable", "nix-daemon.socket")
+				disableSocketCmd.Stdout = os.Stdout
+				disableSocketCmd.Stderr = os.Stderr
+				if disableSocketErr := disableSocketCmd.Run(); disableSocketErr != nil {
+					fmt.Printf("Warning: Failed to disable socket: %v\n", disableSocketErr)
+				}
+			}
+
+			reloadCmd := exec.Command("sudo", "systemctl", "daemon-reload")
+			reloadCmd.Stdout = os.Stdout
+			reloadCmd.Stderr = os.Stderr
+			if reloadErr := reloadCmd.Run(); reloadErr != nil {
+				fmt.Printf("Warning: Failed to reload systemd: %v\n", reloadErr)
 			}
 		}
 
@@ -271,45 +329,120 @@ func (i *Installer) stopDaemonServices() {
 				fmt.Printf("Warning: Failed to unload launchd service: %v\n", stopErr)
 			}
 		}
+
+		if i.fs.Exists("/Library/LaunchDaemons/org.nixos.darwin-store.plist") {
+			fmt.Println("Unloading darwin-store service...")
+			stopCmd := exec.Command("sudo", "launchctl", "unload", "/Library/LaunchDaemons/org.nixos.darwin-store.plist")
+			stopCmd.Stdout = os.Stdout
+			stopCmd.Stderr = os.Stderr
+			if stopErr := stopCmd.Run(); stopErr != nil {
+				fmt.Printf("Warning: Failed to unload darwin-store service: %v\n", stopErr)
+			}
+		}
+	}
+
+	fmt.Println("Killing any remaining Nix processes...")
+	killCmd := exec.Command("sudo", "pkill", "-f", "nix-daemon")
+	if killErr := killCmd.Run(); killErr != nil {
 	}
 }
 
 /*
 cleanupShellFiles removes Nix-related lines from shell configuration files.
+This includes both system-wide and user-specific shell configuration files.
 */
 func (i *Installer) cleanupShellFiles(force bool) {
-	shellFiles := []string{
+	fmt.Println("Cleaning up shell configuration files...")
+
+	systemShellFiles := []string{
 		"/etc/bashrc",
 		"/etc/zshrc",
 		"/etc/bash.bashrc",
+		"/etc/profile",
+		"/etc/profile.d/nix.sh",
 	}
 
-	for _, file := range shellFiles {
+	userShellFiles := []string{}
+	if userHomeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
+		userShellFiles = []string{
+			filepath.Join(userHomeDir, ".bashrc"),
+			filepath.Join(userHomeDir, ".bash_profile"),
+			filepath.Join(userHomeDir, ".zshrc"),
+			filepath.Join(userHomeDir, ".zprofile"),
+			filepath.Join(userHomeDir, ".profile"),
+			filepath.Join(userHomeDir, ".config/fish/config.fish"),
+		}
+	}
+
+	allShellFiles := append(systemShellFiles, userShellFiles...)
+
+	for _, file := range allShellFiles {
 		if i.fs.Exists(file) {
-			content, readErr := os.ReadFile(file)
-			if readErr != nil {
+			i.cleanupSingleShellFile(file, force)
+		}
+	}
+}
+
+/*
+cleanupSingleShellFile removes Nix-related lines from a single shell configuration file.
+*/
+func (i *Installer) cleanupSingleShellFile(file string, force bool) {
+	content, readErr := os.ReadFile(file)
+	if readErr != nil {
+		fmt.Printf("Warning: Failed to read shell file %s: %v\n", file, readErr)
+		return
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	skipBlock := false
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		if strings.Contains(trimmedLine, "# Nix") ||
+			strings.Contains(trimmedLine, "# Added by Nix") ||
+			strings.Contains(trimmedLine, "# Begin Nix") {
+			skipBlock = true
+			continue
+		}
+
+		if skipBlock && (strings.Contains(trimmedLine, "# End Nix") || trimmedLine == "") {
+			skipBlock = false
+			if trimmedLine == "" {
 				continue
 			}
+		}
 
-			lines := strings.Split(string(content), "\n")
-			var newLines []string
-			for _, line := range lines {
-				if !strings.Contains(line, "nix") {
-					newLines = append(newLines, line)
-				}
+		if skipBlock ||
+			strings.Contains(line, "/nix/") ||
+			strings.Contains(line, "nix-daemon") ||
+			strings.Contains(line, ".nix-profile") ||
+			strings.Contains(line, "nix.sh") ||
+			strings.Contains(line, "NIX_") ||
+			strings.Contains(line, "NIXPKGS_") {
+			continue
+		}
+
+		newLines = append(newLines, line)
+	}
+
+	newContent := strings.Join(newLines, "\n")
+
+	if newContent != string(content) {
+		fmt.Printf("Cleaning Nix entries from: %s\n", file)
+
+		needsSudo := strings.HasPrefix(file, "/etc/")
+
+		if needsSudo || force {
+			writeCmd := exec.Command("sudo", "tee", file)
+			writeCmd.Stdin = strings.NewReader(newContent)
+			if writeErr := writeCmd.Run(); writeErr != nil {
+				fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
 			}
-
-			newContent := strings.Join(newLines, "\n")
-			if force {
-				writeCmd := exec.Command("sudo", "tee", file)
-				writeCmd.Stdin = strings.NewReader(newContent)
-				if writeErr := writeCmd.Run(); writeErr != nil {
-					fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
-				}
-			} else {
-				if writeErr := os.WriteFile(file, []byte(newContent), 0644); writeErr != nil {
-					fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
-				}
+		} else {
+			if writeErr := os.WriteFile(file, []byte(newContent), 0644); writeErr != nil {
+				fmt.Printf("Warning: Failed to update shell file %s: %v\n", file, writeErr)
 			}
 		}
 	}
@@ -317,9 +450,12 @@ func (i *Installer) cleanupShellFiles(force bool) {
 
 /*
 removeNixPaths removes all Nix-related files and directories.
+This includes system directories, user directories, cache, and configuration files.
 */
 func (i *Installer) removeNixPaths(force bool) error {
-	paths := []string{
+	fmt.Println("Removing Nix files and directories...")
+
+	systemPaths := []string{
 		"/nix",
 		"/etc/nix",
 		"/etc/profile.d/nix.sh",
@@ -327,28 +463,53 @@ func (i *Installer) removeNixPaths(force bool) error {
 		"/etc/fstab",
 		"/Library/LaunchDaemons/org.nixos.nix-daemon.plist",
 		"/Library/LaunchDaemons/org.nixos.darwin-store.plist",
+		"/etc/systemd/system/nix-daemon.service",
+		"/etc/systemd/system/nix-daemon.socket",
+		"/etc/tmpfiles.d/nix-daemon.conf",
+		"/usr/local/bin/nix-env",
+		"/usr/local/bin/nix",
+		"/usr/local/bin/nix-shell",
 	}
 
+	userPaths := []string{}
 	if userHomeDir, homeDirErr := os.UserHomeDir(); homeDirErr == nil {
-		paths = append(paths,
+		userPaths = []string{
 			filepath.Join(userHomeDir, ".nix-profile"),
 			filepath.Join(userHomeDir, ".nix-defexpr"),
 			filepath.Join(userHomeDir, ".nix-channels"),
-		)
+			filepath.Join(userHomeDir, ".nixpkgs"),
+			filepath.Join(userHomeDir, ".config/nixpkgs"),
+			filepath.Join(userHomeDir, ".config/nix"),
+			filepath.Join(userHomeDir, ".cache/nix"),
+			filepath.Join(userHomeDir, ".local/state/nix"),
+		}
 	}
 
-	for _, path := range paths {
+	allPaths := append(systemPaths, userPaths...)
+
+	for _, path := range allPaths {
 		if !i.fs.Exists(path) {
-			fmt.Printf("Skipping non-existent path: %s\n", path)
 			continue
 		}
 
 		fmt.Printf("Removing: %s\n", path)
+
 		if path == "/nix" {
 			i.unmountNix()
 		}
 
-		removeCmd := exec.Command("sudo", "rm", "-rfv", path)
+		needsSudo := strings.HasPrefix(path, "/etc/") ||
+			strings.HasPrefix(path, "/Library/") ||
+			strings.HasPrefix(path, "/usr/") ||
+			path == "/nix"
+
+		var removeCmd *exec.Cmd
+		if needsSudo {
+			removeCmd = exec.Command("sudo", "rm", "-rf", path)
+		} else {
+			removeCmd = exec.Command("rm", "-rf", path)
+		}
+
 		removeCmd.Stdout = os.Stdout
 		removeCmd.Stderr = os.Stderr
 		if removeErr := removeCmd.Run(); removeErr != nil {
