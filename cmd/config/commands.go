@@ -33,8 +33,7 @@ var ApplyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply the current configuration",
 	Long: `Apply the current configuration.
-This command will load and apply the active configuration, including any inherited configurations.
-Use --force-scripts to run all scripts regardless of whether they've changed.`,
+This command will load and apply the active configuration, including any inherited configurations.`,
 	RunE: runApply,
 }
 
@@ -199,11 +198,11 @@ runReset clears the script hash file.
 */
 func runReset(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
-	
+
 	if err := configSvc.ResetScriptHashes(); err != nil {
 		return fmt.Errorf("failed to reset script hashes: %w", err)
 	}
-	
+
 	fmt.Println("✨ Script hashes reset successfully!")
 	fmt.Println("All scripts will run again on next apply.")
 	return nil
