@@ -40,11 +40,8 @@ Valid types are UserConfig, TeamConfig, and ProjectConfig.
 type ConfigType string
 
 const (
-	// UserConfig represents a user-specific configuration type.
 	UserConfig ConfigType = "user"
-	// TeamConfig represents a team-specific configuration type.
 	TeamConfig ConfigType = "team"
-	// ProjectConfig represents a project-specific configuration type.
 	ProjectConfig ConfigType = "project"
 )
 
@@ -111,6 +108,7 @@ type Script struct {
 	Name        string          `yaml:"name"`
 	Description string          `yaml:"description"`
 	Commands    MultiLineString `yaml:"commands"`
+	RunOnce     bool            `yaml:"runOnce,omitempty"`
 }
 
 /*
@@ -250,7 +248,6 @@ func DiffPackages(installedPackages []string, desiredPackages Packages) PackageD
 	desiredMap := make(map[string]bool)
 	desiredToPnameMap := make(map[string]string)
 	
-	// Map config package names to expected pnames
 	for _, pkg := range desiredPackages.Core {
 		pname := mapAttributeToPname(pkg)
 		desiredMap[pname] = true
@@ -262,18 +259,14 @@ func DiffPackages(installedPackages []string, desiredPackages Packages) PackageD
 		desiredToPnameMap[pname] = pkg
 	}
 
-	// Check what needs to be installed (in config but not installed)
 	for pname := range desiredMap {
 		if !installedMap[pname] {
-			// Return the original config attribute name for installation
 			diff.ToInstall = append(diff.ToInstall, desiredToPnameMap[pname])
 		}
 	}
 
-	// Check what needs to be removed (installed but not in config)
 	for pname := range installedMap {
 		if !desiredMap[pname] {
-			// Return the pname for removal (matches what nix-env expects)
 			diff.ToRemove = append(diff.ToRemove, pname)
 		}
 	}
@@ -286,12 +279,10 @@ mapAttributeToPname converts nixpkgs attribute names to expected package names (
 This handles the mapping between config format (jetbrains.webstorm) and installed format (webstorm).
 */
 func mapAttributeToPname(attribute string) string {
-	// Handle jetbrains packages
 	if strings.HasPrefix(attribute, "jetbrains.") {
 		return strings.TrimPrefix(attribute, "jetbrains.")
 	}
 	
-	// Handle other common attribute mappings
 	switch attribute {
 	case "gcc-wrapper":
 		return "gcc-wrapper"
