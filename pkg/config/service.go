@@ -243,7 +243,7 @@ func (s *Service) installPackage(pkg string) error {
 		pkg))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	err := cmd.Run()
 	if err != nil && s.isPermissionError(err) {
 		fmt.Println("\n⚠️  INSTALLATION FAILED - PERMISSION DENIED!")
@@ -275,9 +275,9 @@ func (s *Service) runScripts(config *schema.Config, force bool) error {
 		scriptKey := fmt.Sprintf("%s_%s", config.Metadata.Name, script.Name)
 		currentHash := s.hashScript(script)
 		lastHash := scriptHashes[scriptKey]
-		
+
 		shouldRun := force || currentHash != lastHash || script.RunOnce && lastHash == ""
-		
+
 		if !shouldRun {
 			fmt.Printf("⏭️  Script '%s' unchanged, skipping\n", script.Name)
 			continue
@@ -327,7 +327,7 @@ loadScriptHashes loads the stored script hashes from disk.
 */
 func (s *Service) loadScriptHashes(hashFile string) map[string]string {
 	hashes := make(map[string]string)
-	
+
 	if !s.fs.Exists(hashFile) {
 		return hashes
 	}
@@ -337,7 +337,9 @@ func (s *Service) loadScriptHashes(hashFile string) map[string]string {
 		return hashes
 	}
 
-	json.Unmarshal(content, &hashes)
+	if err := json.Unmarshal(content, &hashes); err != nil {
+		return make(map[string]string)
+	}
 	return hashes
 }
 
@@ -437,7 +439,7 @@ func (s *Service) removePackage(pkg string) error {
 		pkg))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
 	err := cmd.Run()
 	if err == nil && runtime.GOOS == "darwin" {
 		if cleanupErr := s.CleanupMacOSAppSymlinks(pkg); cleanupErr != nil {
@@ -453,16 +455,16 @@ This avoids cleaning up build artifacts for packages we just installed in the sa
 */
 func (s *Service) runTargetedGarbageCollection(removedPackages []string) error {
 	fmt.Printf("  Cleaning up store paths for: %s\n", strings.Join(removedPackages, ", "))
-	
+
 	cmd := exec.Command("bash", "-c",
 		". /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh && "+
 			"/nix/var/nix/profiles/default/bin/nix-collect-garbage")
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("garbage collection failed: %s: %w", output, err)
 	}
-	
+
 	outputStr := string(output)
 	if strings.Contains(outputStr, "freed") {
 		lines := strings.Split(outputStr, "\n")
@@ -472,7 +474,7 @@ func (s *Service) runTargetedGarbageCollection(removedPackages []string) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -875,32 +877,32 @@ func (s *Service) symlinkMacOSApps(pkg string) error {
 		parts := strings.Split(pkg, ".")
 		packageName = parts[len(parts)-1]
 	}
-	
+
 	cmd := exec.Command("find", "/nix/store", "-name", "*"+packageName+"*", "-type", "d", "-maxdepth", "1")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil
 	}
-	
+
 	storePaths := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, storePath := range storePaths {
 		if storePath == "" {
 			continue
 		}
-		
+
 		err := filepath.Walk(storePath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil
 			}
-			
+
 			if info.IsDir() && strings.HasSuffix(info.Name(), ".app") {
 				appName := info.Name()
 				targetPath := filepath.Join("/Applications", appName)
-				
+
 				if _, statErr := os.Lstat(targetPath); statErr == nil {
 					return nil
 				}
-				
+
 				if symlinkErr := os.Symlink(path, targetPath); symlinkErr != nil {
 					fmt.Printf("\n📱 GUI App Installed: %s\n", appName)
 					fmt.Printf("   To make it visible in Launchpad, run:\n")
@@ -912,12 +914,12 @@ func (s *Service) symlinkMacOSApps(pkg string) error {
 			}
 			return nil
 		})
-		
+
 		if err != nil {
 			continue
 		}
 	}
-	
+
 	return nil
 }
 
@@ -931,30 +933,30 @@ func (s *Service) CleanupMacOSAppSymlinks(pkg string) error {
 	if err != nil {
 		return s.CleanupOrphanedNixSymlinks()
 	}
-	
+
 	applicationsDir := "/Applications"
 	entries, err := os.ReadDir(applicationsDir)
 	if err != nil {
 		return nil
 	}
-	
+
 	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), ".app") {
 			continue
 		}
-		
+
 		entryPath := filepath.Join(applicationsDir, entry.Name())
-		
+
 		linkInfo, err := os.Lstat(entryPath)
 		if err != nil || linkInfo.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-		
+
 		target, err := os.Readlink(entryPath)
 		if err != nil {
 			continue
 		}
-		
+
 		for _, storePath := range storePaths {
 			if strings.HasPrefix(target, storePath) {
 				if removeErr := os.Remove(entryPath); removeErr != nil {
@@ -966,7 +968,7 @@ func (s *Service) CleanupMacOSAppSymlinks(pkg string) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -980,13 +982,13 @@ func (s *Service) getNixStorePathsForPackage(pkg string) ([]string, error) {
 		parts := strings.Split(pkg, ".")
 		packageName = parts[len(parts)-1]
 	}
-	
+
 	cmd := exec.Command("find", "/nix/store", "-name", "*"+packageName+"*", "-type", "d", "-maxdepth", "1")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	storePaths := strings.Split(strings.TrimSpace(string(output)), "\n")
 	var validPaths []string
 	for _, path := range storePaths {
@@ -994,7 +996,7 @@ func (s *Service) getNixStorePathsForPackage(pkg string) ([]string, error) {
 			validPaths = append(validPaths, path)
 		}
 	}
-	
+
 	return validPaths, nil
 }
 
@@ -1008,28 +1010,28 @@ func (s *Service) CleanupOrphanedNixSymlinks() error {
 	if err != nil {
 		return nil
 	}
-	
+
 	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), ".app") {
 			continue
 		}
-		
+
 		entryPath := filepath.Join(applicationsDir, entry.Name())
-		
+
 		linkInfo, err := os.Lstat(entryPath)
 		if err != nil || linkInfo.Mode()&os.ModeSymlink == 0 {
 			continue
 		}
-		
+
 		target, err := os.Readlink(entryPath)
 		if err != nil {
 			continue
 		}
-		
+
 		if !strings.Contains(target, "/nix/store/") {
 			continue
 		}
-		
+
 		if _, statErr := os.Stat(target); os.IsNotExist(statErr) {
 			if removeErr := os.Remove(entryPath); removeErr != nil {
 				fmt.Printf("Warning: Failed to remove orphaned symlink for %s: %v\n", entry.Name(), removeErr)
@@ -1038,7 +1040,7 @@ func (s *Service) CleanupOrphanedNixSymlinks() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -1048,14 +1050,14 @@ to run again on the next apply.
 */
 func (s *Service) ResetScriptHashes() error {
 	hashFile := s.getScriptHashFile()
-	
+
 	if !s.fs.Exists(hashFile) {
 		return nil
 	}
-	
+
 	if err := os.Remove(hashFile); err != nil {
 		return fmt.Errorf("failed to remove script hash file: %w", err)
 	}
-	
+
 	return nil
 }
