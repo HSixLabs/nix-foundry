@@ -22,5 +22,6 @@ func init() {
 		config.ListCmd,
 		config.ShowCmd,
 		config.SetCmd,
+		config.ResetCmd,
 	)
 }

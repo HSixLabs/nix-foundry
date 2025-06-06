@@ -6,6 +6,8 @@ applying, and merging of configurations across different scopes (user, team, pro
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -127,11 +129,19 @@ func (s *Service) SaveConfig(config *schema.Config) error {
 ApplyConfig applies the active configuration to the system. This includes:
 1. Configuring the shell environment if specified in user config
 2. Managing packages (installing new ones, removing old ones)
-3. Running any configured scripts
+3. Running any configured scripts (with change detection)
 
 Returns an error if any step of the application process fails.
 */
 func (s *Service) ApplyConfig() error {
+	return s.ApplyConfigWithOptions(false)
+}
+
+/*
+ApplyConfigWithOptions applies the active configuration with additional options.
+Supports forcing script execution regardless of change detection.
+*/
+func (s *Service) ApplyConfigWithOptions(forceScripts bool) error {
 	activeConfig, configErr := s.GetActiveConfig()
 	if configErr != nil {
 		return fmt.Errorf("failed to get active config: %w", configErr)
@@ -147,7 +157,7 @@ func (s *Service) ApplyConfig() error {
 		return fmt.Errorf("failed to manage packages: %w", pkgErr)
 	}
 
-	if scriptErr := s.runScripts(activeConfig); scriptErr != nil {
+	if scriptErr := s.runScripts(activeConfig, forceScripts); scriptErr != nil {
 		return fmt.Errorf("failed to run scripts: %w", scriptErr)
 	}
 
@@ -252,20 +262,95 @@ func (s *Service) installPackage(pkg string) error {
 }
 
 /*
-runScripts executes all scripts defined in the configuration.
-Each script is run using bash, with stdout and stderr connected to
-allow the user to see the execution output.
+runScripts executes the scripts defined in the configuration.
+Scripts only run when their content has changed (hash-based detection)
+or when force is true. This prevents unnecessary re-execution.
 */
-func (s *Service) runScripts(config *schema.Config) error {
+func (s *Service) runScripts(config *schema.Config, force bool) error {
+	hashFile := s.getScriptHashFile()
+	scriptHashes := s.loadScriptHashes(hashFile)
+	hasChanges := false
+
 	for _, script := range config.Nix.Scripts {
+		scriptKey := fmt.Sprintf("%s_%s", config.Metadata.Name, script.Name)
+		currentHash := s.hashScript(script)
+		lastHash := scriptHashes[scriptKey]
+		
+		shouldRun := force || currentHash != lastHash || script.RunOnce && lastHash == ""
+		
+		if !shouldRun {
+			fmt.Printf("⏭️  Script '%s' unchanged, skipping\n", script.Name)
+			continue
+		}
+
+		fmt.Printf("🔧 Running script: %s\n", script.Name)
 		cmd := exec.Command("bash", "-c", string(script.Commands))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if execErr := cmd.Run(); execErr != nil {
 			return fmt.Errorf("failed to run script %s: %w", script.Name, execErr)
 		}
+
+		scriptHashes[scriptKey] = currentHash
+		hasChanges = true
 	}
+
+	if hasChanges {
+		if saveErr := s.saveScriptHashes(hashFile, scriptHashes); saveErr != nil {
+			fmt.Printf("Warning: Failed to save script hashes: %v\n", saveErr)
+		}
+	}
+
 	return nil
+}
+
+/*
+hashScript creates a SHA256 hash of the script content for change detection.
+*/
+func (s *Service) hashScript(script schema.Script) string {
+	content := fmt.Sprintf("%s|%s|%v", script.Name, script.Commands, script.RunOnce)
+	hash := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(hash[:])
+}
+
+/*
+getScriptHashFile returns the path to the script hash storage file.
+*/
+func (s *Service) getScriptHashFile() string {
+	configPath, _ := schema.GetConfigPath()
+	configDir := filepath.Dir(configPath)
+	return filepath.Join(configDir, "script-hashes.json")
+}
+
+/*
+loadScriptHashes loads the stored script hashes from disk.
+*/
+func (s *Service) loadScriptHashes(hashFile string) map[string]string {
+	hashes := make(map[string]string)
+	
+	if !s.fs.Exists(hashFile) {
+		return hashes
+	}
+
+	content, err := s.fs.ReadFile(hashFile)
+	if err != nil {
+		return hashes
+	}
+
+	json.Unmarshal(content, &hashes)
+	return hashes
+}
+
+/*
+saveScriptHashes saves the script hashes to disk.
+*/
+func (s *Service) saveScriptHashes(hashFile string, hashes map[string]string) error {
+	content, err := json.Marshal(hashes)
+	if err != nil {
+		return err
+	}
+
+	return s.fs.WriteFile(hashFile, content, 0644)
 }
 
 /*
@@ -952,6 +1037,24 @@ func (s *Service) CleanupOrphanedNixSymlinks() error {
 				fmt.Printf("🗑️  Removed orphaned symlink for %s\n", entry.Name())
 			}
 		}
+	}
+	
+	return nil
+}
+
+/*
+ResetScriptHashes removes the script hash file, causing all scripts
+to run again on the next apply.
+*/
+func (s *Service) ResetScriptHashes() error {
+	hashFile := s.getScriptHashFile()
+	
+	if !s.fs.Exists(hashFile) {
+		return nil
+	}
+	
+	if err := os.Remove(hashFile); err != nil {
+		return fmt.Errorf("failed to remove script hash file: %w", err)
 	}
 	
 	return nil

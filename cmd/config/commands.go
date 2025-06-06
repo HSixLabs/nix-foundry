@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	configType string
-	configName string
-	showType   string
+	configType   string
+	configName   string
+	showType     string
+	forceScripts bool
 )
 
 /*
@@ -32,7 +33,8 @@ var ApplyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply the current configuration",
 	Long: `Apply the current configuration.
-This command will load and apply the active configuration, including any inherited configurations.`,
+This command will load and apply the active configuration, including any inherited configurations.
+Use --force-scripts to run all scripts regardless of whether they've changed.`,
 	RunE: runApply,
 }
 
@@ -104,17 +106,30 @@ If no name is provided, it will show the active configuration.`,
 }
 
 /*
+ResetCmd represents the reset command for clearing script execution state.
+It allows users to re-run scripts by clearing the hash tracking.
+*/
+var ResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Reset script execution state",
+	Long: `Reset script execution state.
+This command will clear the record of script hashes,
+causing all scripts to run again on the next apply.`,
+	RunE: runReset,
+}
+
+/*
 runApply executes the configuration application process.
 It retrieves and applies the active configuration, which includes:
 1. Shell environment configuration
 2. Package installation
-3. Script execution
+3. Script execution (with change detection unless forced)
 Returns an error if any part of the application process fails.
 */
 func runApply(_ *cobra.Command, _ []string) error {
 	configSvc := config.GetConfigService()
 
-	if err := configSvc.ApplyConfig(); err != nil {
+	if err := configSvc.ApplyConfigWithOptions(forceScripts); err != nil {
 		return fmt.Errorf("failed to apply configuration: %w", err)
 	}
 
@@ -180,6 +195,21 @@ func runShow(_ *cobra.Command, args []string) error {
 }
 
 /*
+runReset clears the script hash file.
+*/
+func runReset(_ *cobra.Command, _ []string) error {
+	configSvc := config.GetConfigService()
+	
+	if err := configSvc.ResetScriptHashes(); err != nil {
+		return fmt.Errorf("failed to reset script hashes: %w", err)
+	}
+	
+	fmt.Println("✨ Script hashes reset successfully!")
+	fmt.Println("All scripts will run again on next apply.")
+	return nil
+}
+
+/*
 showConfig formats and displays the full details of a configuration.
 It shows:
 1. Basic metadata (name, type, inheritance)
@@ -235,10 +265,12 @@ init initializes the configuration commands by setting up flags and options.
 It configures:
 - Init command flags for type and name
 - Show command flags for type specification
+- Apply command flags for force-scripts option
 This function is automatically called during package initialization.
 */
 func init() {
 	InitCmd.Flags().StringVarP(&configType, "type", "t", "user", "Configuration type (user|team|project)")
 	InitCmd.Flags().StringVarP(&configName, "name", "n", "", "Configuration name (required for team and project configs)")
 	ShowCmd.Flags().StringVarP(&showType, "type", "t", "", "Configuration type (user|team|project)")
+	ApplyCmd.Flags().BoolVar(&forceScripts, "force-scripts", false, "Force all scripts to run regardless of changes")
 }
